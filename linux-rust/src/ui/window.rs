@@ -143,6 +143,11 @@ impl App {
             let mut settings = window::Settings::default();
             settings.min_size = Some(Size::new(400.0, 300.0));
             settings.icon = window::icon::from_file("../../assets/icon.png").ok();
+            #[cfg(target_os = "linux")]
+            {
+                settings.platform_specific.application_id =
+                    "me.kavishdevar.librepods".to_string();
+            }
             let (id, open) = window::open(settings);
             (Some(id), open.map(Message::WindowOpened))
         };
@@ -280,6 +285,11 @@ impl App {
                             let mut settings = window::Settings::default();
                             settings.min_size = Some(Size::new(400.0, 300.0));
                             settings.icon = window::icon::from_file("../../assets/icon.png").ok();
+                            #[cfg(target_os = "linux")]
+                            {
+                                settings.platform_specific.application_id =
+                                    "me.kavishdevar.librepods".to_string();
+                            }
                             let (new_window_task, open_task) = window::open(settings);
                             self.window = Some(new_window_task);
                             Task::batch(vec![open_task.map(Message::WindowOpened), wait_task])

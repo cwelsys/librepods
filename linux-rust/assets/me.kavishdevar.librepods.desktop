@@ -2,5 +2,6 @@
 Name=LibrePods
 Exec=librepods
 Icon=me.kavishdevar.librepods
+StartupWMClass=me.kavishdevar.librepods
 Type=Application
 Categories=Utility;
