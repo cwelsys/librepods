@@ -3,7 +3,7 @@ use crate::devices::enums::{DeviceData, DeviceInformation, DeviceType};
 use crate::utils::get_devices_path;
 use bluer::{
     Address, AddressType, Error, Result,
-    l2cap::{SeqPacket, Socket, SocketAddr},
+    l2cap::{Security, SecurityLevel, SeqPacket, Socket, SocketAddr},
 };
 use log::{debug, error, info};
 use serde::{Deserialize, Serialize};
@@ -387,6 +387,20 @@ impl AACPManager {
                 return;
             }
         };
+
+        // AirPods only emit the AAP notification stream over an authenticated,
+        // encrypted L2CAP channel. Some models (e.g. the H1 AirPods Max) accept
+        // writes but report nothing back unless encryption is requested first.
+        // This is a no-op on devices BlueZ already encrypts (e.g. AirPods Max 2,
+        // which streams battery/ear-detection without it).
+        if let Err(e) = socket.set_security(Security {
+            level: SecurityLevel::Medium,
+            key_size: 0,
+        }) {
+            error!("Failed to set L2CAP security to Medium: {}", e);
+        } else {
+            debug!("Requested L2CAP security level Medium before connect");
+        }
 
         let seq_packet =
             match tokio::time::timeout(CONNECT_TIMEOUT, socket.connect(target_sa)).await {
