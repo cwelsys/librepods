@@ -130,7 +130,7 @@ impl AirPodsModel {
             "A2698" | "A2699" | "A2931" => AirPodsModel::AirPodsPro2Lightning,
             "A3047" | "A3048" | "A3049" => AirPodsModel::AirPodsPro2USBC,
             "A2096" => AirPodsModel::AirPodsMaxLightning,
-            "A3184" => AirPodsModel::AirPodsMaxUSBC,
+            "A3184" | "A3454" => AirPodsModel::AirPodsMaxUSBC,
             _ => AirPodsModel::Unknown,
         }
     }

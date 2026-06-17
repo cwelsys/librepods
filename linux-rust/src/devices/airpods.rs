@@ -439,6 +439,7 @@ impl AirPodsInformation {
             "A3047" | "A3048" | "A3049" => Some("AirPods Pro 2 USB-C"),
             "A2096" => Some("AirPods Max"),
             "A3184" => Some("AirPods Max USB-C"),
+            "A3454" => Some("AirPods Max 2"),
             _ => None,
         }
     }
