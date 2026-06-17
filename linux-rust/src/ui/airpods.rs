@@ -133,10 +133,12 @@ fn battery_column<'a>(
         };
 
         column![
-            // Battery bar
+            // Battery bar — colored fill is a fixed fraction of the track width.
+            // (A lone FillPortion child of a single-child container always fills
+            // 100%, which would make every bar look full, so use Fixed here.)
             container(
                 container(Space::new())
-                    .width(Length::FillPortion((bar_fill * 100.0) as u16))
+                    .width(Length::Fixed(bar_total_width * bar_fill))
                     .height(bar_height)
                     .style(move |_theme: &Theme| {
                         let mut s = container::Style::default();
