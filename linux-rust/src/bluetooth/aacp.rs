@@ -622,9 +622,10 @@ impl AACPManager {
                         hex::encode(&value)
                     );
                 } else {
-                    error!(
-                        "Unknown Control Command identifier: {:#04x}",
-                        identifier_byte
+                    debug!(
+                        "Unhandled Control Command identifier: {:#04x}, value: {}",
+                        identifier_byte,
+                        hex::encode(&value)
                     );
                 }
             }
