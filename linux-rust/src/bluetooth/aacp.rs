@@ -440,6 +440,11 @@ impl AACPManager {
 
     async fn send_packet(&self, data: &[u8]) -> Result<()> {
         let state = self.state.lock().await;
+        debug!(
+            "send_packet: {} bytes, sender_present={}",
+            data.len(),
+            state.sender.is_some()
+        );
         if let Some(sender) = &state.sender {
             sender.send(data.to_vec()).await.map_err(|e| {
                 error!("Failed to send packet to channel: {}", e);
@@ -974,6 +979,11 @@ impl AACPManager {
         identifier: ControlCommandIdentifiers,
         value: &[u8],
     ) -> Result<()> {
+        debug!(
+            "send_control_command: identifier={:?}, value={}",
+            identifier,
+            hex::encode(value)
+        );
         let opcode = [opcodes::CONTROL_COMMAND, 0x00];
         let mut data = vec![identifier as u8];
         for i in 0..4 {

@@ -81,6 +81,16 @@ impl AirPodsDevice {
             error!("Failed to request proximity keys: {}", e);
         }
 
+        // Claim ownership so the device honors our control commands (macOS does this on
+        // every connect); without it, listening-mode and setting changes are ignored.
+        info!("Claiming connection ownership");
+        if let Err(e) = aacp_manager
+            .send_control_command(ControlCommandIdentifiers::OwnsConnection, &[0x01])
+            .await
+        {
+            error!("Failed to claim connection ownership: {}", e);
+        }
+
         let app_settings_path = get_app_settings_path();
         let settings = std::fs::read_to_string(&app_settings_path)
             .ok()

@@ -113,14 +113,21 @@ pub fn airpods_view<'a>(
                         move |selected_mode| {
                             let aacp_manager = aacp_manager.clone();
                             let selected_mode_c = selected_mode.clone();
+                            log::debug!(
+                                "Noise control combo_box selected: {:?} (byte {:#04x})",
+                                selected_mode_c,
+                                selected_mode_c.to_byte()
+                            );
                             run_async_in_thread(async move {
-                                aacp_manager
+                                if let Err(e) = aacp_manager
                                     .send_control_command(
                                         ControlCommandIdentifiers::ListeningMode,
                                         &[selected_mode_c.to_byte()],
                                     )
                                     .await
-                                    .expect("Failed to send Noise Control Mode command");
+                                {
+                                    log::error!("Failed to send Noise Control Mode command: {}", e);
+                                }
                             });
                             let mut state = state_clone.clone();
                             state.noise_control_mode = selected_mode.clone();
