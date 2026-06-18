@@ -1,6 +1,7 @@
 mod bluetooth;
 mod devices;
 mod media_controller;
+mod single_instance;
 mod ui;
 mod utils;
 
@@ -78,6 +79,17 @@ fn main() -> iced::Result {
     env_logger::init();
 
     let (ui_tx, ui_rx) = unbounded_channel::<BluetoothUIMessage>();
+
+    // Single-instance guard. A second launch raises the running window (unless we
+    // were asked to start minimized) and exits, instead of spawning a rival
+    // process that would fight over the tray and the AACP socket.
+    match single_instance::acquire(ui_tx.clone(), !args.start_minimized) {
+        single_instance::InstanceRole::Primary => {}
+        single_instance::InstanceRole::Secondary => {
+            info!("LibrePods is already running; raised the existing window. Exiting.");
+            return Ok(());
+        }
+    }
 
     let device_managers: Arc<RwLock<HashMap<String, DeviceManagers>>> =
         Arc::new(RwLock::new(HashMap::new()));

@@ -2428,6 +2428,7 @@ dependencies = [
  "bluer",
  "clap",
  "dbus",
+ "dbus-crossroads",
  "env_logger",
  "futures",
  "hex",

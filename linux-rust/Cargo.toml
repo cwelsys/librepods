@@ -10,6 +10,7 @@ env_logger = {version = "0.11.10", features = ["auto-color"]}
 uuid = "1.23.0"
 log = "0.4.29"
 dbus = "0.9.10"
+dbus-crossroads = "0.5.3"
 hex = "0.4.3"
 iced = { version = "0.14.0", features = ["tokio", "image"] }
 libpulse-binding = "2.30.1"
