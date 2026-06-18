@@ -60,10 +60,23 @@ pub async fn start_le_monitor(tray_handle: Option<ksni::Handle<MyTray>>) -> blue
     let mut failed_macs: HashSet<Address> = HashSet::new();
     let connecting_macs = Arc::new(Mutex::new(HashSet::<Address>::new()));
 
+    // Match Apple manufacturer ID (0x004C, little-endian) AND the proximity-
+    // pairing message type (0x07) that immediately follows it. AirPods broadcast
+    // their battery/status under this type, and the decrypt path below already
+    // assumes that layout.
+    //
+    // Matching the company ID alone (`[0x4C, 0x00]`) makes BlueZ track *every*
+    // nearby Apple advertiser (iPhones, Macs, AirTags, other people's AirPods),
+    // all of which use rotating Resolvable Private Addresses. When one rotates
+    // its RPA or leaves range the kernel fires ADV_MONITOR_DEVICE_LOST, and
+    // bluetoothd logs an error-level "Device object not found for <RPA>" for the
+    // already-GC'd transient device object — hundreds per day. Constraining to
+    // the proximity-pairing type narrows the tracked set to AirPods-class
+    // devices and cuts that churn dramatically without affecting detection.
     let pattern = Pattern {
         data_type: 0xFF, // Manufacturer specific data
         start_position: 0,
-        content: vec![0x4C, 0x00], // Apple manufacturer ID (76) in LE
+        content: vec![0x4C, 0x00, 0x07], // Apple ID (LE) + proximity-pairing type
     };
 
     let mm = adapter.monitor().await?;

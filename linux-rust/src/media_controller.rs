@@ -252,7 +252,12 @@ impl MediaController {
                     debug!("Set user_played_the_media to true as media was playing");
                 }
             }
-        } else if new_all_out {
+        } else if new_all_out && !old_all_out {
+            // Only on the *transition* into fully-removed. The buds keep emitting
+            // ear-detection packets while sitting out (e.g. OutOfEar -> Disconnected
+            // as sensors sleep); without the !old_all_out guard, each one re-runs
+            // pause() and stomps on media the user deliberately started on another
+            // sink after taking the buds off.
             debug!("Condition met: buds removed, pausing media");
             self.pause().await;
             {
