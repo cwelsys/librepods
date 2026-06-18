@@ -46,16 +46,11 @@ fn verify_rpa(addr: &str, irk: &[u8; 16]) -> bool {
     hash == computed_hash
 }
 
-pub async fn start_le_monitor(tray_handle: Option<ksni::Handle<MyTray>>) -> bluer::Result<()> {
-    let session = Session::new().await?;
-    let adapter = session.default_adapter().await?;
-    adapter.set_powered(true).await?;
-
-    let all_devices: HashMap<String, DeviceData> = std::fs::read_to_string(get_devices_path())
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-
+async fn run_monitor_once(
+    adapter: bluer::Adapter,
+    tray_handle: Option<ksni::Handle<MyTray>>,
+    all_devices: HashMap<String, DeviceData>,
+) -> bluer::Result<()> {
     let mut verified_macs: HashMap<Address, String> = HashMap::new();
     let mut failed_macs: HashSet<Address> = HashSet::new();
     let connecting_macs = Arc::new(Mutex::new(HashSet::<Address>::new()));
@@ -249,6 +244,10 @@ pub async fn start_le_monitor(tray_handle: Option<ksni::Handle<MyTray>>) -> blue
                                                                     .unwrap(),
                                                                 stderr
                                                             );
+                                                            // Clear the in-flight marker so a later
+                                                            // advertisement can retry; otherwise this
+                                                            // RPA stays blacklisted until it rotates.
+                                                            cm.remove(&real_address);
                                                         }
                                                     }
                                                     Err(e) => {
@@ -257,8 +256,10 @@ pub async fn start_le_monitor(tray_handle: Option<ksni::Handle<MyTray>>) -> blue
                                                             matched_airpods_mac.as_ref().unwrap(),
                                                             e
                                                         );
+                                                        cm.remove(&real_address);
                                                     }
                                                 }
+                                            } else {
                                                 info!(
                                                     "Auto-connect is disabled for {}, not attempting to connect.",
                                                     matched_airpods_mac.as_ref().unwrap()
@@ -389,4 +390,52 @@ pub async fn start_le_monitor(tray_handle: Option<ksni::Handle<MyTray>>) -> blue
     }
 
     Ok(())
+}
+
+pub async fn start_le_monitor(
+    tray_handle: Option<ksni::Handle<MyTray>>,
+    mut connected_rx: tokio::sync::watch::Receiver<bool>,
+) -> bluer::Result<()> {
+    let session = Session::new().await?;
+    let adapter = session.default_adapter().await?;
+    adapter.set_powered(true).await?;
+
+    let all_devices: HashMap<String, DeviceData> = std::fs::read_to_string(get_devices_path())
+        .ok()
+        .and_then(|s| serde_json::from_str(&s).ok())
+        .unwrap_or_default();
+
+    // Run the advertisement monitor only while our AirPods are NOT connected to
+    // this adapter. While connected it has no job (auto-connect is moot, battery
+    // comes over AACP) yet it keeps matching the AirPods' ~15-min BLE privacy-
+    // address rotation, making bluetoothd error-log "Device object not found"
+    // for each rotated-away address. Aborting the worker drops its monitor
+    // handle so bluez unregisters the monitor entirely until we disconnect again.
+    loop {
+        // Wait until no AirPods are connected locally.
+        while *connected_rx.borrow_and_update() {
+            if connected_rx.changed().await.is_err() {
+                return Ok(()); // sender dropped: app shutting down
+            }
+        }
+
+        let monitor_task = tokio::spawn(run_monitor_once(
+            adapter.clone(),
+            tray_handle.clone(),
+            all_devices.clone(),
+        ));
+
+        // Run until our AirPods connect locally.
+        while !*connected_rx.borrow_and_update() {
+            if connected_rx.changed().await.is_err() {
+                monitor_task.abort();
+                let _ = monitor_task.await;
+                return Ok(());
+            }
+        }
+
+        info!("AirPods connected locally; pausing LE monitor");
+        monitor_task.abort();
+        let _ = monitor_task.await;
+    }
 }

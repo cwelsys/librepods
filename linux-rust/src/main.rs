@@ -165,13 +165,11 @@ async fn async_main(
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
 
-    let le_tray_clone = tray_handle.clone();
-    tokio::spawn(async move {
-        info!("Starting LE monitor...");
-        if let Err(e) = start_le_monitor(le_tray_clone).await {
-            log::error!("LE monitor error: {}", e);
-        }
-    });
+    // Tracks whether our AirPods are connected to THIS adapter. The LE monitor
+    // only runs while disconnected (see start_le_monitor), so it stops churning
+    // bluetoothd logs with the AirPods' BLE privacy-address rotation once they're
+    // connected here. Flipped from the initial scan and the D-Bus listener below.
+    let (connected_tx, connected_rx) = tokio::sync::watch::channel(false);
 
     info!("Listening for new connections.");
 
@@ -183,6 +181,7 @@ async fn async_main(
                 .await?
                 .unwrap_or_else(|| "Unknown".to_string());
             info!("Found connected AirPods: {}, initializing.", name);
+            let _ = connected_tx.send(true);
             let airpods_device =
                 AirPodsDevice::new(device.address(), tray_handle.clone(), ui_tx.clone()).await;
 
@@ -204,6 +203,14 @@ async fn async_main(
             info!("No connected AirPods found.");
         }
     }
+
+    let le_tray_clone = tray_handle.clone();
+    tokio::spawn(async move {
+        info!("Starting LE monitor...");
+        if let Err(e) = start_le_monitor(le_tray_clone, connected_rx).await {
+            log::error!("LE monitor error: {}", e);
+        }
+    });
 
     match find_other_managed_devices(&adapter, managed_devices_mac.clone()).await {
         Ok(devices) => {
@@ -286,6 +293,9 @@ async fn async_main(
             return true;
         };
         if is_connected==0 {
+            if uuids.iter().any(|u| u.to_lowercase() == target_uuid) {
+                let _ = connected_tx.send(false);
+            }
             if let Err(e) = ui_tx.send(BluetoothUIMessage::DeviceDisconnected(addr_str.clone())) {
                 warn!("Failed to send DeviceConnected UI message: {:?}", e);
             }
@@ -317,6 +327,7 @@ async fn async_main(
         if !uuids.iter().any(|u| u.to_lowercase() == target_uuid) {
             return true;
         }
+        let _ = connected_tx.send(true);
         let name = proxy
             .get::<String>("org.bluez.Device1", "Name")
             .unwrap_or_else(|_| "Unknown".to_string());
