@@ -630,6 +630,10 @@ impl AACPManager {
                 }
             }
             opcodes::EAR_DETECTION => {
+                if packet.len() < 8 {
+                    error!("Ear Detection packet too short: {}", hex::encode(packet));
+                    return;
+                }
                 let primary_status = packet[6];
                 let secondary_status = packet[7];
                 let mut statuses = Vec::new();
@@ -715,6 +719,10 @@ impl AACPManager {
                         strings.push(s.to_string());
                     }
                 }
+                if strings.is_empty() {
+                    error!("Information packet contained no parseable strings");
+                    return;
+                }
                 strings.remove(0);
                 let info = AirPodsInformation {
                     name: strings.first().cloned().unwrap_or_default(),
@@ -740,7 +748,13 @@ impl AACPManager {
                     device_data.name = info.name.clone();
                     device_data.information = Some(DeviceInformation::AirPods(info.clone()));
                 }
-                let json = serde_json::to_string(&state.devices).unwrap();
+                let json = match serde_json::to_string(&state.devices) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        error!("Failed to serialize devices: {}", e);
+                        return;
+                    }
+                };
                 if let Some(parent) = get_devices_path().parent()
                     && let Err(e) = tokio::fs::create_dir_all(&parent).await
                 {
@@ -827,7 +841,13 @@ impl AACPManager {
                         }
                     }
                 }
-                let json = serde_json::to_string(&state.devices).unwrap();
+                let json = match serde_json::to_string(&state.devices) {
+                    Ok(json) => json,
+                    Err(e) => {
+                        error!("Failed to serialize devices: {}", e);
+                        return;
+                    }
+                };
                 if let Some(parent) = get_devices_path().parent()
                     && let Err(e) = tokio::fs::create_dir_all(&parent).await
                 {
@@ -885,7 +905,10 @@ impl AACPManager {
                     return;
                 }
                 let count = payload[2] as usize;
-                if payload.len() < 3 + count * 8 {
+                // Each device record starts at `5 + i * 8` and reads 8 bytes,
+                // so the highest index touched is `5 + (count-1)*8 + 7`,
+                // i.e. the buffer must hold at least `5 + count * 8` bytes.
+                if payload.len() < 5 + count * 8 {
                     error!(
                         "Connected Devices packet length mismatch: {}",
                         hex::encode(payload)
@@ -925,6 +948,13 @@ impl AACPManager {
                 info!("Received Connected Devices: {:?}", state.connected_devices);
             }
             opcodes::SMART_ROUTING_RESP => {
+                if payload.len() < 2 {
+                    error!(
+                        "Smart Routing Response packet too short: {}",
+                        hex::encode(payload)
+                    );
+                    return;
+                }
                 let packet_string = String::from_utf8_lossy(&payload[2..]);
                 info!("Received Smart Routing Response: {}", packet_string);
                 if packet_string.contains("SetOwnershipToFalse") {

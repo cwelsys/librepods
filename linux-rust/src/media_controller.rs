@@ -127,6 +127,15 @@ impl MediaController {
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
 
+            // Stop once this connection's socket is gone. `recv_thread` clears
+            // `sender` when the L2CAP link closes, and a fresh AACPManager is
+            // built per connect — so without this, every reconnect would leave
+            // another orphaned loop polling MPRIS and firing stale hijacks.
+            if aacp_manager.state.lock().await.sender.is_none() {
+                info!("AACP connection closed; stopping playback listener loop");
+                break;
+            }
+
             let is_playing = tokio::task::spawn_blocking(|| Self::check_if_playing())
                 .await
                 .unwrap_or(false);
@@ -185,6 +194,7 @@ impl MediaController {
                 debug!("completed playback takeover process");
             }
         }
+        self.state.lock().await.playback_listener_running = false;
     }
 
     fn check_if_playing() -> bool {
@@ -288,7 +298,11 @@ impl MediaController {
         old_sorted.sort();
         let mut new_sorted = new_in_ear_data.clone();
         new_sorted.sort();
-        if new_sorted != old_sorted {
+        // The transition *into* fully-removed is already handled (paused) by the
+        // `new_all_out && !old_all_out` branch above; don't let this block pause
+        // a second time for the same event.
+        let removed_transition_handled = new_all_out && !old_all_out;
+        if new_sorted != old_sorted && !removed_transition_handled {
             debug!("Ear data changed, checking resume/pause logic");
             if in_ear {
                 debug!("Resuming media as buds are in ear");
@@ -341,10 +355,12 @@ impl MediaController {
         if !self.is_a2dp_profile_available().await {
             warn!("A2DP profile not available, attempting to restart WirePlumber");
             if self.restart_wire_plumber().await {
+                // Look up the index without holding the state lock: the probe
+                // does a blocking PulseAudio enumeration and other tasks must
+                // not be stalled waiting on `state` for its duration.
+                let new_index = self.get_audio_device_index(&mac).await;
                 let mut state = self.state.lock().await;
-                state.device_index = self
-                    .get_audio_device_index(&state.connected_device_mac)
-                    .await;
+                state.device_index = new_index;
                 debug!(
                     "Updated device_index after WirePlumber restart: {:?}",
                     state.device_index
@@ -425,7 +441,7 @@ impl MediaController {
             paused_services
         })
             .await
-            .unwrap();
+            .unwrap_or_default();
 
         if !paused_services.is_empty() {
             info!("Paused {} media player(s) via DBus", paused_services.len());
@@ -472,7 +488,7 @@ impl MediaController {
             paused_count
         })
             .await
-            .unwrap();
+            .unwrap_or_default();
 
         if paused_count > 0 {
             info!("Paused {} media player(s) due to ownership loss", paused_count);
@@ -513,7 +529,7 @@ impl MediaController {
             resumed_count
         })
             .await
-            .unwrap();
+            .unwrap_or_default();
 
         if resumed_count > 0 {
             info!("Resumed {} media player(s) via DBus", resumed_count);
@@ -648,20 +664,22 @@ impl MediaController {
 
     pub async fn deactivate_a2dp_profile(&self) {
         debug!("Entering deactivate_a2dp_profile");
-        let mut state = self.state.lock().await;
+        let (mut device_index, mac) = {
+            let state = self.state.lock().await;
+            (state.device_index, state.connected_device_mac.clone())
+        };
 
-        if state.device_index.is_none() {
-            state.device_index = self
-                .get_audio_device_index(&state.connected_device_mac)
-                .await;
+        // Resolve the index without holding the state lock — the probe blocks
+        // on a PulseAudio enumeration and must not stall other state users.
+        if device_index.is_none() {
+            device_index = self.get_audio_device_index(&mac).await;
+            self.state.lock().await.device_index = device_index;
         }
 
-        if state.connected_device_mac.is_empty() || state.device_index.is_none() {
+        let Some(device_index) = device_index.filter(|_| !mac.is_empty()) else {
             warn!("Connected device MAC or index is empty, cannot deactivate A2DP profile");
             return;
-        }
-        let device_index = state.device_index.unwrap();
-        drop(state);
+        };
 
         info!("Deactivating A2DP profile for AirPods by setting to off");
 
@@ -848,7 +866,7 @@ impl MediaController {
             }
         })
             .await
-            .unwrap();
+            .unwrap_or_default();
     }
 
     async fn restore_volume_if_needed(&self, sink: &str) {
