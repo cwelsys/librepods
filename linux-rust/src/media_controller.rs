@@ -53,6 +53,8 @@ struct MediaControllerState {
     conv_original_volume: Option<u32>,
     conv_conversation_started: bool,
     playback_listener_running: bool,
+    aacp_manager: Option<AACPManager>,
+    control_tx: Option<tokio::sync::mpsc::UnboundedSender<(crate::bluetooth::aacp::ControlCommandIdentifiers, Vec<u8>)>>,
 }
 
 impl MediaControllerState {
@@ -72,6 +74,8 @@ impl MediaControllerState {
             conv_original_volume: None,
             conv_conversation_started: false,
             playback_listener_running: false,
+            aacp_manager: None,
+            control_tx: None,
         }
     }
 }
@@ -105,6 +109,8 @@ impl MediaController {
             return;
         }
         state.playback_listener_running = true;
+        state.aacp_manager = Some(aacp_manager.clone());
+        state.control_tx = Some(control_tx.clone());
         drop(state);
 
         let controller_clone = self.clone();
@@ -162,39 +168,37 @@ impl MediaController {
                     info!("Media playback started but buds not in ear, skipping takeover");
                     continue;
                 }
-                info!("Media playback started, taking ownership and activating a2dp");
-                let _ = control_tx.send((
-                    crate::bluetooth::aacp::ControlCommandIdentifiers::OwnsConnection,
-                    vec![0x01],
-                ));
-                self.activate_a2dp_profile().await;
-
-                info!("already connected locally, hijacking connection by asking AirPods");
-
-                for device in connected_devices {
-                    if device.mac != local_mac {
-                        if let Err(e) = aacp_manager
-                            .send_media_information(&local_mac, &device.mac, true)
-                            .await
-                        {
-                            error!("Failed to send media information to {}: {}", device.mac, e);
-                        }
-                        if let Err(e) = aacp_manager.send_smart_routing_show_ui(&device.mac).await {
-                            error!(
-                                "Failed to send smart routing show ui to {}: {}",
-                                device.mac, e
-                            );
-                        }
-                        if let Err(e) = aacp_manager.send_hijack_request(&device.mac).await {
-                            error!("Failed to send hijack request to {}: {}", device.mac, e);
-                        }
-                    }
-                }
-
+                self.take_audio_ownership(&aacp_manager, &control_tx).await;
                 debug!("completed playback takeover process");
             }
         }
         self.state.lock().await.playback_listener_running = false;
+    }
+
+    pub async fn take_audio_ownership(
+        &self,
+        aacp_manager: &AACPManager,
+        control_tx: &tokio::sync::mpsc::UnboundedSender<(crate::bluetooth::aacp::ControlCommandIdentifiers, Vec<u8>)>,
+    ) {
+        let local_mac = self.state.lock().await.local_mac.clone();
+        let connected_devices = aacp_manager.state.lock().await.connected_devices.clone();
+        info!("Taking audio ownership and activating a2dp");
+        let _ = control_tx.send((crate::bluetooth::aacp::ControlCommandIdentifiers::OwnsConnection, vec![0x01]));
+        self.activate_a2dp_profile().await;
+        info!("hijacking connection by asking AirPods");
+        for device in connected_devices {
+            if device.mac != local_mac {
+                if let Err(e) = aacp_manager.send_media_information(&local_mac, &device.mac, true).await {
+                    error!("Failed to send media information to {}: {}", device.mac, e);
+                }
+                if let Err(e) = aacp_manager.send_smart_routing_show_ui(&device.mac).await {
+                    error!("Failed to send smart routing show ui to {}: {}", device.mac, e);
+                }
+                if let Err(e) = aacp_manager.send_hijack_request(&device.mac).await {
+                    error!("Failed to send hijack request to {}: {}", device.mac, e);
+                }
+            }
+        }
     }
 
     fn check_if_playing() -> bool {
@@ -260,6 +264,23 @@ impl MediaController {
                 if state.is_playing {
                     state.user_played_the_media = true;
                     debug!("Set user_played_the_media to true as media was playing");
+                }
+            }
+            // Grab audio on a fresh insertion unless another device is actively streaming/
+            // on a call (Apple's priority model). Uses the AACP handle stored by the
+            // playback listener.
+            let (aacp_opt, tx_opt) = {
+                let state = self.state.lock().await;
+                (state.aacp_manager.clone(), state.control_tx.clone())
+            };
+            if let (Some(aacp), Some(tx)) = (aacp_opt, tx_opt) {
+                let local_mac = self.state.lock().await.local_mac.clone();
+                let other_streaming = aacp.any_other_device_streaming(&local_mac).await;
+                if should_grab_on_insertion(new_has_at_least_one_in, old_all_out, other_streaming) {
+                    debug!("Ear insertion: grabbing audio (no other device streaming)");
+                    self.take_audio_ownership(&aacp, &tx).await;
+                } else {
+                    debug!("Ear insertion: deferring grab (other_streaming={})", other_streaming);
                 }
             }
         } else if new_all_out && !old_all_out {
@@ -1050,6 +1071,31 @@ pub fn transition_sink_volume(sink_name: &str, target_volume: u32) -> bool {
     } else {
         error!("Sink not found: {}", sink_name);
         false
+    }
+}
+
+fn should_grab_on_insertion(new_has_at_least_one_in: bool, old_all_out: bool, other_streaming: bool) -> bool {
+    new_has_at_least_one_in && old_all_out && !other_streaming
+}
+
+#[cfg(test)]
+mod grab_tests {
+    use super::should_grab_on_insertion;
+
+    #[test]
+    fn grabs_on_insertion_when_nothing_else_active() {
+        assert!(should_grab_on_insertion(true, true, false));
+    }
+
+    #[test]
+    fn defers_when_other_device_streaming() {
+        assert!(!should_grab_on_insertion(true, true, true));
+    }
+
+    #[test]
+    fn no_grab_without_insertion_transition() {
+        assert!(!should_grab_on_insertion(true, false, false)); // not a fresh out->in
+        assert!(!should_grab_on_insertion(false, true, false)); // nothing now in ear
     }
 }
 
