@@ -314,6 +314,32 @@ pub struct AirPodsLEKeys {
     pub enc_key: String,
 }
 
+/// Extract (btAddress, host_streaming) from a relayed Smart-Routing string.
+/// Fields are length-prefixed (0x40|len, rendered as ASCII by from_utf8_lossy),
+/// so `hostStreamingState` is immediately followed by `YES`/`NO` (after the 1-byte
+/// prefix) and `btAddress` by a 17-char MAC.
+pub fn parse_smart_routing_streaming(s: &str) -> Option<(String, bool)> {
+    let stream_idx = s.find("hostStreamingState")?;
+    let after = &s[stream_idx + "hostStreamingState".len()..];
+    // skip the 1-char length prefix, then read the value token
+    let val = after.get(1..)?;
+    let streaming = if val.starts_with("YES") {
+        true
+    } else if val.starts_with("NO") {
+        false
+    } else {
+        return None;
+    };
+
+    let mac_idx = s.find("btAddress")?;
+    let mac_after = &s[mac_idx + "btAddress".len()..];
+    let mac = mac_after.get(1..18)?.to_string(); // skip prefix, take 17 chars "XX:XX:XX:XX:XX:XX"
+    if mac.len() != 17 {
+        return None;
+    }
+    Some((mac, streaming))
+}
+
 pub struct AACPManagerState {
     pub sender: Option<mpsc::Sender<Vec<u8>>>,
     pub control_command_status_list: Vec<ControlCommandStatus>,
@@ -330,6 +356,7 @@ pub struct AACPManagerState {
     event_tx: Option<mpsc::UnboundedSender<AACPEvent>>,
     pub devices: HashMap<String, DeviceData>,
     pub airpods_mac: Option<Address>,
+    pub device_streaming: std::collections::HashMap<String, bool>,
 }
 
 impl AACPManagerState {
@@ -353,6 +380,7 @@ impl AACPManagerState {
             event_tx: None,
             devices,
             airpods_mac: None,
+            device_streaming: std::collections::HashMap::new(),
         }
     }
 }
@@ -963,6 +991,11 @@ impl AACPManager {
                         let _ = tx.send(AACPEvent::OwnershipToFalseRequest);
                     }
                 }
+                if let Some((mac, streaming)) = parse_smart_routing_streaming(&packet_string) {
+                    let mut state = self.state.lock().await;
+                    state.device_streaming.insert(mac.clone(), streaming);
+                    debug!("Smart-Routing: device {} streaming={}", mac, streaming);
+                }
             }
             opcodes::EQ_DATA => {
                 debug!("Received EQ Data");
@@ -1255,6 +1288,14 @@ impl AACPManager {
         self.send_data_packet(&[0x29, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF])
             .await
     }
+
+    pub async fn any_other_device_streaming(&self, local_mac: &str) -> bool {
+        let state = self.state.lock().await;
+        state
+            .device_streaming
+            .iter()
+            .any(|(mac, &streaming)| streaming && mac != local_mac)
+    }
 }
 
 async fn recv_thread(manager: AACPManager, sp: Arc<SeqPacket>) {
@@ -1279,6 +1320,7 @@ async fn recv_thread(manager: AACPManager, sp: Arc<SeqPacket>) {
                 state.owns = false;
                 state.connected_devices.clear();
                 state.control_command_status_list.clear();
+                state.device_streaming.clear();
                 break;
             }
         }
@@ -1308,4 +1350,33 @@ async fn send_thread(mut rx: mpsc::Receiver<Vec<u8>>, sp: Arc<SeqPacket>) {
         }
     }
     info!("Send thread finished.");
+}
+
+#[cfg(test)]
+mod smart_routing_tests {
+    use super::parse_smart_routing_streaming;
+
+    #[test]
+    fn parses_streaming_yes_with_mac() {
+        let s = "JplayingAppGUnknownRhostStreamingStateCYESIbtAddressQ48:35:2B:97:EB:20FbtNameFiPhone";
+        assert_eq!(
+            parse_smart_routing_streaming(s),
+            Some(("48:35:2B:97:EB:20".to_string(), true))
+        );
+    }
+
+    #[test]
+    fn parses_streaming_no_with_mac() {
+        let s = "JplayingAppGUnknownRhostStreamingStateBNOIbtAddressQ48:35:2B:97:EB:20FbtName";
+        assert_eq!(
+            parse_smart_routing_streaming(s),
+            Some(("48:35:2B:97:EB:20".to_string(), false))
+        );
+    }
+
+    #[test]
+    fn returns_none_without_streaming_field() {
+        let s = "JidleTimeIbtAddressQ48:35:2B:97:EB:20FbtNameFiPhonePnearbyAudioScore";
+        assert_eq!(parse_smart_routing_streaming(s), None);
+    }
 }
