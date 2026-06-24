@@ -1057,6 +1057,19 @@ impl AACPManager {
         identifier: ControlCommandIdentifiers,
         value: &[u8],
     ) -> Result<()> {
+        // The device ignores control commands unless we own the connection. Since we no
+        // longer claim ownership at connect (to avoid provoking the phone in multipoint),
+        // claim it just-in-time when the user actually drives a control.
+        if identifier != ControlCommandIdentifiers::OwnsConnection {
+            let owns = self.state.lock().await.owns;
+            if !owns {
+                debug!("Control command {:?} but not owner; claiming ownership first", identifier);
+                let opcode = [opcodes::CONTROL_COMMAND, 0x00];
+                let data = [ControlCommandIdentifiers::OwnsConnection as u8, 0x01, 0x00, 0x00, 0x00];
+                let claim = [opcode.as_slice(), data.as_slice()].concat();
+                self.send_data_packet(&claim).await?;
+            }
+        }
         debug!(
             "send_control_command: identifier={:?}, value={}",
             identifier,
