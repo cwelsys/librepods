@@ -400,11 +400,6 @@ pub async fn start_le_monitor(
     let adapter = session.default_adapter().await?;
     adapter.set_powered(true).await?;
 
-    let all_devices: HashMap<String, DeviceData> = std::fs::read_to_string(get_devices_path())
-        .ok()
-        .and_then(|s| serde_json::from_str(&s).ok())
-        .unwrap_or_default();
-
     // Run the advertisement monitor only while our AirPods are NOT connected to
     // this adapter. While connected it has no job (auto-connect is moot, battery
     // comes over AACP) yet it keeps matching the AirPods' ~15-min BLE privacy-
@@ -418,6 +413,19 @@ pub async fn start_le_monitor(
                 return Ok(()); // sender dropped: app shutting down
             }
         }
+
+        // Re-read the device store each time we (re)start the monitor. The IRKs
+        // needed to resolve the AirPods' rotating BLE addresses are persisted on
+        // *connect* (proximity-keys handshake), so a pair connected for the first
+        // time this session isn't in the file yet when the monitor first starts.
+        // Reloading here means the monitor picks up that pair after its first
+        // connect/disconnect cycle instead of requiring an app restart.
+        let all_devices: HashMap<String, DeviceData> =
+            std::fs::read_to_string(get_devices_path())
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok())
+                .unwrap_or_default();
+        debug!("LE monitor (re)loaded {} known device(s)", all_devices.len());
 
         let monitor_task = tokio::spawn(run_monitor_once(
             adapter.clone(),
