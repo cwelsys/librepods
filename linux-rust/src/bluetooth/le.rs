@@ -16,6 +16,13 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+fn backoff_ok(last_attempt: Option<std::time::Instant>, now: std::time::Instant, cooldown: std::time::Duration) -> bool {
+    match last_attempt {
+        None => true,
+        Some(t) => now.duration_since(t) >= cooldown,
+    }
+}
+
 fn decrypt(key: &[u8; 16], data: &[u8; 16]) -> [u8; 16] {
     let cipher = Aes128::new(&Array::from(*key));
     let mut block = Array::from(*data);
@@ -54,6 +61,7 @@ async fn run_monitor_once(
     let mut verified_macs: HashMap<Address, String> = HashMap::new();
     let mut failed_macs: HashSet<Address> = HashSet::new();
     let connecting_macs = Arc::new(Mutex::new(HashSet::<Address>::new()));
+    let last_attempt = Arc::new(Mutex::new(HashMap::<Address, std::time::Instant>::new()));
 
     // Match Apple manufacturer ID (0x004C, little-endian) AND the proximity-
     // pairing message type (0x07) that immediately follows it. AirPods broadcast
@@ -152,6 +160,7 @@ async fn run_monitor_once(
                 let mut events = dev.events().await?;
                 let tray_handle_clone = tray_handle.clone();
                 let connecting_macs_clone = Arc::clone(&connecting_macs);
+                let last_attempt_clone = Arc::clone(&last_attempt);
                 tokio::spawn(async move {
                     while let Some(ev) = events.next().await {
                         match ev {
@@ -174,7 +183,25 @@ async fn run_monitor_once(
 
                                         let connection_state = apple_data[10] as usize;
                                         debug!("Connection state: {}", connection_state);
-                                        if connection_state == 0x00 {
+                                        // Auto-connect whenever the buds are out and reachable,
+                                        // regardless of whether another device (the phone)
+                                        // currently holds them — true multipoint presence.
+                                        // (The old `== 0x00` gate never fired because the phone
+                                        // claims them first.)
+                                        let real_address =
+                                            Address::from_str(&addr_str).unwrap();
+                                        let now = std::time::Instant::now();
+                                        let cooldown = std::time::Duration::from_secs(10);
+                                        let within_cooldown = {
+                                            let la = last_attempt_clone.lock().await;
+                                            !backoff_ok(la.get(&real_address).copied(), now, cooldown)
+                                        };
+                                        if within_cooldown {
+                                            debug!(
+                                                "Within reconnect cooldown for {}, skipping advertisement.",
+                                                matched_airpods_mac.as_ref().unwrap()
+                                            );
+                                        } else {
                                             let pref_path = get_preferences_path();
                                             let preferences: HashMap<
                                                 String,
@@ -194,69 +221,74 @@ async fn run_monitor_once(
                                                 auto_connect
                                             );
                                             if auto_connect {
-                                                let real_address =
-                                                    Address::from_str(&addr_str).unwrap();
                                                 let mut cm = connecting_macs_clone.lock().await;
                                                 if cm.contains(&real_address) {
                                                     info!(
                                                         "Already connecting to {}, skipping duplicate attempt.",
                                                         matched_airpods_mac.as_ref().unwrap()
                                                     );
-                                                    return;
-                                                }
-                                                cm.insert(real_address);
-                                                // let adapter_clone = adapter_monitor_clone.clone();
-                                                // let real_device = adapter_clone.device(real_address).unwrap();
-                                                info!(
-                                                    "AirPods are disconnected, attempting to connect to {}",
-                                                    matched_airpods_mac.as_ref().unwrap()
-                                                );
-                                                // if let Err(e) = real_device.connect().await {
-                                                //     info!("Failed to connect to AirPods {}: {}", matched_airpods_mac.as_ref().unwrap(), e);
-                                                // } else {
-                                                //     info!("Successfully connected to AirPods {}", matched_airpods_mac.as_ref().unwrap());
-                                                // }
-                                                // call bluetoothctl connect <mac> for now, I don't know why bluer connect isn't working
-                                                let output =
-                                                    tokio::process::Command::new("bluetoothctl")
-                                                        .arg("connect")
-                                                        .arg(matched_airpods_mac.as_ref().unwrap())
-                                                        .output()
-                                                        .await;
-                                                match output {
-                                                    Ok(output) => {
-                                                        if output.status.success() {
+                                                } else {
+                                                    cm.insert(real_address);
+                                                    // Record the attempt timestamp before releasing
+                                                    // the lock to prevent storms on rapid-fire adverts.
+                                                    last_attempt_clone
+                                                        .lock()
+                                                        .await
+                                                        .insert(real_address, now);
+                                                    // let adapter_clone = adapter_monitor_clone.clone();
+                                                    // let real_device = adapter_clone.device(real_address).unwrap();
+                                                    info!(
+                                                        "AirPods are disconnected, attempting to connect to {}",
+                                                        matched_airpods_mac.as_ref().unwrap()
+                                                    );
+                                                    // if let Err(e) = real_device.connect().await {
+                                                    //     info!("Failed to connect to AirPods {}: {}", matched_airpods_mac.as_ref().unwrap(), e);
+                                                    // } else {
+                                                    //     info!("Successfully connected to AirPods {}", matched_airpods_mac.as_ref().unwrap());
+                                                    // }
+                                                    // call bluetoothctl connect <mac> for now, I don't know why bluer connect isn't working
+                                                    let output =
+                                                        tokio::process::Command::new("bluetoothctl")
+                                                            .arg("connect")
+                                                            .arg(matched_airpods_mac.as_ref().unwrap())
+                                                            .output()
+                                                            .await;
+                                                    match output {
+                                                        Ok(output) => {
+                                                            if output.status.success() {
+                                                                info!(
+                                                                    "Successfully connected to AirPods {}",
+                                                                    matched_airpods_mac
+                                                                        .as_ref()
+                                                                        .unwrap()
+                                                                );
+                                                                cm.remove(&real_address);
+                                                            } else {
+                                                                let stderr =
+                                                                    String::from_utf8_lossy(
+                                                                        &output.stderr,
+                                                                    );
+                                                                info!(
+                                                                    "Failed to connect to AirPods {}: {}",
+                                                                    matched_airpods_mac
+                                                                        .as_ref()
+                                                                        .unwrap(),
+                                                                    stderr
+                                                                );
+                                                                // Clear the in-flight marker so a later
+                                                                // advertisement can retry; otherwise this
+                                                                // RPA stays blacklisted until it rotates.
+                                                                cm.remove(&real_address);
+                                                            }
+                                                        }
+                                                        Err(e) => {
                                                             info!(
-                                                                "Successfully connected to AirPods {}",
-                                                                matched_airpods_mac
-                                                                    .as_ref()
-                                                                    .unwrap()
+                                                                "Failed to execute bluetoothctl to connect to AirPods {}: {}",
+                                                                matched_airpods_mac.as_ref().unwrap(),
+                                                                e
                                                             );
-                                                            cm.remove(&real_address);
-                                                        } else {
-                                                            let stderr = String::from_utf8_lossy(
-                                                                &output.stderr,
-                                                            );
-                                                            info!(
-                                                                "Failed to connect to AirPods {}: {}",
-                                                                matched_airpods_mac
-                                                                    .as_ref()
-                                                                    .unwrap(),
-                                                                stderr
-                                                            );
-                                                            // Clear the in-flight marker so a later
-                                                            // advertisement can retry; otherwise this
-                                                            // RPA stays blacklisted until it rotates.
                                                             cm.remove(&real_address);
                                                         }
-                                                    }
-                                                    Err(e) => {
-                                                        info!(
-                                                            "Failed to execute bluetoothctl to connect to AirPods {}: {}",
-                                                            matched_airpods_mac.as_ref().unwrap(),
-                                                            e
-                                                        );
-                                                        cm.remove(&real_address);
                                                     }
                                                 }
                                             } else {
@@ -390,6 +422,31 @@ async fn run_monitor_once(
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod backoff_tests {
+    use super::backoff_ok;
+    use std::time::{Duration, Instant};
+
+    #[test]
+    fn allows_when_never_attempted() {
+        assert!(backoff_ok(None, Instant::now(), Duration::from_secs(10)));
+    }
+
+    #[test]
+    fn blocks_within_cooldown() {
+        let now = Instant::now();
+        let last = now - Duration::from_secs(3);
+        assert!(!backoff_ok(Some(last), now, Duration::from_secs(10)));
+    }
+
+    #[test]
+    fn allows_after_cooldown() {
+        let now = Instant::now();
+        let last = now - Duration::from_secs(11);
+        assert!(backoff_ok(Some(last), now, Duration::from_secs(10)));
+    }
 }
 
 pub async fn start_le_monitor(
