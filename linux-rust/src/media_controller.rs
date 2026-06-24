@@ -149,21 +149,12 @@ impl MediaController {
             let mut state = self.state.lock().await;
             let was_playing = state.is_playing;
             state.is_playing = is_playing;
-            let local_mac = state.local_mac.clone();
             drop(state);
 
             if !was_playing && is_playing {
-                // Drop the AACP state guard before sending: the send_* calls below
-                // re-lock aacp_manager.state inside send_packet, which would deadlock.
-                let (buds_in_ear, connected_devices) = {
-                    let aacp_state = aacp_manager.state.lock().await;
-                    (
-                        aacp_state
-                            .ear_detection_status
-                            .contains(&EarDetectionStatus::InEar),
-                        aacp_state.connected_devices.clone(),
-                    )
-                };
+                let buds_in_ear = aacp_manager.state.lock().await
+                    .ear_detection_status
+                    .contains(&EarDetectionStatus::InEar);
                 if !buds_in_ear {
                     info!("Media playback started but buds not in ear, skipping takeover");
                     continue;
@@ -269,12 +260,11 @@ impl MediaController {
             // Grab audio on a fresh insertion unless another device is actively streaming/
             // on a call (Apple's priority model). Uses the AACP handle stored by the
             // playback listener.
-            let (aacp_opt, tx_opt) = {
+            let (aacp_opt, tx_opt, local_mac) = {
                 let state = self.state.lock().await;
-                (state.aacp_manager.clone(), state.control_tx.clone())
+                (state.aacp_manager.clone(), state.control_tx.clone(), state.local_mac.clone())
             };
             if let (Some(aacp), Some(tx)) = (aacp_opt, tx_opt) {
-                let local_mac = self.state.lock().await.local_mac.clone();
                 let other_streaming = aacp.any_other_device_streaming(&local_mac).await;
                 if should_grab_on_insertion(new_has_at_least_one_in, old_all_out, other_streaming) {
                     debug!("Ear insertion: grabbing audio (no other device streaming)");
