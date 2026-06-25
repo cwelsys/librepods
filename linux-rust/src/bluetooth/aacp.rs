@@ -308,7 +308,7 @@ pub enum AACPEvent {
     StemPress(StemPressType, StemPressBudType),
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AirPodsLEKeys {
     pub irk: String,
     pub enc_key: String,
@@ -773,8 +773,20 @@ impl AACPManager {
                 if let Some(mac) = state.airpods_mac
                     && let Some(device_data) = state.devices.get_mut(&mac.to_string())
                 {
+                    // The Information packet does not carry LE keys, so it builds
+                    // `info` with empty ones. Preserve any IRK/enc_key already learned
+                    // from a proximity-keys response — otherwise this rebuild wipes
+                    // them back to "" and the LE monitor can never resolve the buds'
+                    // rotating address, breaking auto-connect.
+                    let mut info = info.clone();
+                    if let Some(DeviceInformation::AirPods(existing)) = &device_data.information
+                        && (!existing.le_keys.irk.is_empty()
+                            || !existing.le_keys.enc_key.is_empty())
+                    {
+                        info.le_keys = existing.le_keys.clone();
+                    }
                     device_data.name = info.name.clone();
-                    device_data.information = Some(DeviceInformation::AirPods(info.clone()));
+                    device_data.information = Some(DeviceInformation::AirPods(info));
                 }
                 let json = match serde_json::to_string(&state.devices) {
                     Ok(json) => json,
@@ -847,6 +859,17 @@ impl AACPManager {
                                 type_: DeviceType::AirPods,
                                 information: None,
                             });
+                        // Keys can arrive before the Information packet. Ensure there's
+                        // an AirPods record to attach them to so they aren't dropped;
+                        // the Information handler later fills the remaining fields while
+                        // preserving these keys.
+                        if !matches!(
+                            device_data.information,
+                            Some(DeviceInformation::AirPods(_))
+                        ) {
+                            device_data.information =
+                                Some(DeviceInformation::AirPods(AirPodsInformation::default()));
+                        }
                         match kt {
                             ProximityKeyType::Irk => match device_data.information.as_mut() {
                                 Some(DeviceInformation::AirPods(info)) => {
