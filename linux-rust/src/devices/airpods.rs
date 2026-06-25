@@ -232,15 +232,19 @@ impl AirPodsDevice {
                 owns_connection_tx,
             )
             .await;
-        let mc_clone_owns = media_controller.clone();
         tokio::spawn(async move {
             while let Some(value) = owns_connection_rx.recv().await {
                 let owns = value.first().copied().unwrap_or(0) != 0;
                 if !owns {
-                    info!("Lost ownership, pausing media and disconnecting audio");
-                    let controller = mc_clone_owns.lock().await;
-                    controller.pause_all_media().await;
-                    controller.deactivate_a2dp_profile().await;
+                    // Losing *nominal* ownership must NOT pause us. The phone asserts
+                    // ownership merely by connecting (even when it's not playing), and
+                    // a real Apple device keeps playing on the active device until
+                    // another device actually streams. The yield is driven by the
+                    // AudioSource event (an actual Media/Call stream on another
+                    // device), not by this ownership flag.
+                    debug!(
+                        "Nominal ownership lost (OwnsConnection=0); not pausing — yield is driven by AudioSource streaming."
+                    );
                 }
             }
         });
@@ -359,14 +363,46 @@ impl AirPodsDevice {
                         }
                     }
                     AACPEvent::OwnershipToFalseRequest => {
+                        // Acknowledge the yield (set ownership false), but do NOT pause
+                        // on this nominal-ownership signal alone — pausing is driven by
+                        // the AudioSource event (another device actually streaming).
+                        // Keep A2DP active so the buds stay a usable PC sink.
                         info!(
-                            "Received ownership to false request. Setting ownership to false and pausing media."
+                            "Received ownership to false request. Acknowledging (OwnsConnection=0); not pausing on nominal ownership."
                         );
                         let _ = command_tx_clone
                             .send((ControlCommandIdentifiers::OwnsConnection, vec![0x00]));
-                        let controller = mc_clone.lock().await;
-                        controller.pause_all_media().await;
-                        controller.deactivate_a2dp_profile().await;
+                    }
+                    AACPEvent::AudioSource(ref source) => {
+                        use crate::bluetooth::aacp::AudioSourceType;
+                        // Yield (pause) only when *another* device becomes the active
+                        // audio source with a real stream. This is the Apple-correct
+                        // handoff: the actively-playing device wins, and mere
+                        // ownership/connection changes never pause us. We keep A2DP
+                        // active throughout so we can reclaim on intent.
+                        let is_other = source.mac != local_mac_events
+                            && source.mac != "00:00:00:00:00:00";
+                        let is_active = matches!(
+                            source.r#type,
+                            AudioSourceType::Media | AudioSourceType::Call
+                        );
+                        if is_other && is_active {
+                            info!(
+                                "Another device ({}) is the active audio source ({:?}); yielding (pausing), keeping the buds as a usable sink",
+                                source.mac, source.r#type
+                            );
+                            let controller = mc_clone.lock().await;
+                            controller.pause_all_media().await;
+                        } else {
+                            debug!(
+                                "Audio source update: mac={}, type={:?} (no yield)",
+                                source.mac, source.r#type
+                            );
+                        }
+                        let _ = ui_tx_clone.send(BluetoothUIMessage::AACPUIEvent(
+                            mac_address.to_string(),
+                            event_clone,
+                        ));
                     }
                     AACPEvent::StemPress(press_type, bud_type) => {
                         use crate::bluetooth::aacp::StemPressType;

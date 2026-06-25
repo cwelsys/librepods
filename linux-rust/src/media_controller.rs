@@ -152,13 +152,14 @@ impl MediaController {
             drop(state);
 
             if !was_playing && is_playing {
-                let buds_in_ear = aacp_manager.state.lock().await
-                    .ear_detection_status
-                    .contains(&EarDetectionStatus::InEar);
-                if !buds_in_ear {
-                    info!("Media playback started but buds not in ear, skipping takeover");
-                    continue;
-                }
+                // Playing on the PC is explicit intent to use the PC's audio output,
+                // so grab the route from whichever device currently holds it
+                // (last-to-play wins, like Apple). Do NOT gate on ear-detection: the
+                // buds frequently don't re-send an in-ear reading after a reconnect,
+                // leaving the status stale/false, which made PC audio route into the
+                // AirCans sink while the phone still owned the route (silence). Ear
+                // detection still governs auto-pause on removal, not routing.
+                info!("PC playback started; taking audio ownership (last-to-play wins)");
                 self.take_audio_ownership(&aacp_manager, &control_tx).await;
                 debug!("completed playback takeover process");
             }
