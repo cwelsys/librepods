@@ -149,6 +149,24 @@ impl AirPodsDevice {
             .await;
         drop(mc_listener);
 
+        // A connected peer is always a usable PC sink. Activate the A2DP profile on
+        // connect and leave it active for the life of the connection — yielding audio
+        // to another device only pauses playback, it never deactivates the sink. This
+        // is what makes the buds selectable/usable immediately on (re)connect, even
+        // when reconnecting while already worn (no ear out->in transition fires).
+        // Spawned (not awaited) because activation may restart WirePlumber and we
+        // don't want to block the rest of connect setup.
+        let mc_a2dp_on_connect = media_controller.clone();
+        tokio::spawn(async move {
+            // Brief delay so BlueZ/PipeWire finishes exposing the card after connect.
+            sleep(Duration::from_millis(500)).await;
+            mc_a2dp_on_connect
+                .lock()
+                .await
+                .activate_a2dp_profile()
+                .await;
+        });
+
         let (listening_mode_tx, mut listening_mode_rx) = tokio::sync::mpsc::unbounded_channel();
         aacp_manager
             .subscribe_to_control_command(
