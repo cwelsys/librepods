@@ -154,14 +154,31 @@ impl MediaController {
             if !was_playing && is_playing {
                 // Playing on the PC is explicit intent to use the PC's audio output,
                 // so grab the route from whichever device currently holds it
-                // (last-to-play wins, like Apple). Do NOT gate on ear-detection: the
-                // buds frequently don't re-send an in-ear reading after a reconnect,
-                // leaving the status stale/false, which made PC audio route into the
-                // AirCans sink while the phone still owned the route (silence). Ear
-                // detection still governs auto-pause on removal, not routing.
-                info!("PC playback started; taking audio ownership (last-to-play wins)");
-                self.take_audio_ownership(&aacp_manager, &control_tx).await;
-                debug!("completed playback takeover process");
+                // (last-to-play wins, like Apple) — UNLESS the buds are knowingly off
+                // the head. We can't gate on a bare "no bud in ear", because the buds
+                // frequently don't re-send an in-ear reading after a reconnect,
+                // leaving the status *empty* (unknown); gating on that routed PC audio
+                // into the AirCans sink the phone still owned (silence). So we only
+                // skip the grab on a *definitive* all-out reading — otherwise grabbing
+                // would yank the route back onto buds the user just took off, making
+                // ear tracking useless. (Auto-pause on removal is still handled by
+                // handle_ear_detection.)
+                let ear_status = aacp_manager
+                    .state
+                    .lock()
+                    .await
+                    .ear_detection_status
+                    .clone();
+                if should_take_on_playback(&ear_status) {
+                    info!("PC playback started; taking audio ownership (last-to-play wins)");
+                    self.take_audio_ownership(&aacp_manager, &control_tx).await;
+                    debug!("completed playback takeover process");
+                } else {
+                    info!(
+                        "PC playback started but buds are off the head (ear_status={:?}); not grabbing the route",
+                        ear_status
+                    );
+                }
             }
         }
         self.state.lock().await.playback_listener_running = false;
@@ -1069,6 +1086,25 @@ fn should_grab_on_insertion(new_has_at_least_one_in: bool, old_all_out: bool, ot
     new_has_at_least_one_in && old_all_out && !other_streaming
 }
 
+/// Whether PC playback should grab the audio route, given the latest
+/// ear-detection reading from the buds.
+///
+/// Playing on the PC is explicit intent (last-to-play wins), so we grab in the
+/// common cases. The one case we must NOT grab is when the buds are *knowingly*
+/// off the head: yanking the route back onto an empty sink is exactly what makes
+/// ear tracking useless.
+///
+/// The status distinguishes two kinds of "no bud in ear":
+/// - **empty** — no reading since the last (re)connect; the buds often don't
+///   re-send an in-ear reading after reconnecting, so this is *unknown*, not
+///   "out". Grab — otherwise PC audio routes into a sink the phone still owns
+///   (silence).
+/// - **non-empty, all-out** — a real removal reading. The buds are off the head;
+///   don't grab.
+fn should_take_on_playback(ear_status: &[EarDetectionStatus]) -> bool {
+    ear_status.is_empty() || ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+}
+
 #[cfg(test)]
 mod grab_tests {
     use super::should_grab_on_insertion;
@@ -1087,6 +1123,33 @@ mod grab_tests {
     fn no_grab_without_insertion_transition() {
         assert!(!should_grab_on_insertion(true, false, false)); // not a fresh out->in
         assert!(!should_grab_on_insertion(false, true, false)); // nothing now in ear
+    }
+}
+
+#[cfg(test)]
+mod playback_tests {
+    use super::should_take_on_playback;
+    use crate::bluetooth::aacp::EarDetectionStatus::{self, Disconnected, InEar, OutOfEar};
+
+    #[test]
+    fn grabs_when_status_unknown_after_reconnect() {
+        // No reading yet: treat as unknown, grab (else PC audio is silent).
+        let empty: Vec<EarDetectionStatus> = Vec::new();
+        assert!(should_take_on_playback(&empty));
+    }
+
+    #[test]
+    fn grabs_when_a_bud_is_in_ear() {
+        assert!(should_take_on_playback(&[InEar, InEar]));
+        assert!(should_take_on_playback(&[InEar, OutOfEar]));
+    }
+
+    #[test]
+    fn does_not_grab_when_knowingly_off_the_head() {
+        // A real all-out reading: the buds are off the head, don't yank the route.
+        assert!(!should_take_on_playback(&[OutOfEar, OutOfEar]));
+        assert!(!should_take_on_playback(&[Disconnected, Disconnected]));
+        assert!(!should_take_on_playback(&[OutOfEar, Disconnected]));
     }
 }
 
