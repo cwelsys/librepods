@@ -210,6 +210,32 @@ impl MediaController {
         }
     }
 
+    /// Activate the A2DP sink on (re)connect, but only when a bud is known to be in
+    /// the ear. Picking the buds up off the charger (off-head) must not create the
+    /// sink, because the WirePlumber priority rule would then make them the default
+    /// and route audio to buds that aren't being worn. The ear-insertion branch in
+    /// `handle_ear_detection` activates later if the buds are put in.
+    pub async fn activate_a2dp_on_connect(&self, aacp_manager: &AACPManager) {
+        let ear_status = aacp_manager
+            .state
+            .lock()
+            .await
+            .ear_detection_status
+            .clone();
+        if should_activate_on_connect(&ear_status) {
+            info!(
+                "Connect: buds in ear (ear_status={:?}); activating A2DP sink",
+                ear_status
+            );
+            self.activate_a2dp_profile().await;
+        } else {
+            info!(
+                "Connect: buds not in ear (ear_status={:?}); not activating A2DP sink (the ear-insertion path will activate when worn)",
+                ear_status
+            );
+        }
+    }
+
     fn check_if_playing() -> bool {
         let conn = match Connection::new_session() {
             Ok(c) => c,
