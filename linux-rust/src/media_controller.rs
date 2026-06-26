@@ -1105,6 +1105,18 @@ fn should_take_on_playback(ear_status: &[EarDetectionStatus]) -> bool {
     ear_status.is_empty() || ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
 }
 
+/// Whether to activate the A2DP sink on (re)connect, given the latest ear reading.
+///
+/// Unlike PC playback (explicit intent → grab even on unknown status), a bare
+/// connect carries no intent. Picking the buds up off the charger is exactly the
+/// off-head/unknown case, so we require a *definitive* in-ear reading here.
+/// Off-head or unknown/empty → don't create the sink; the ear-insertion branch in
+/// `handle_ear_detection` is the backstop that activates when the buds are actually
+/// put in (it fires even from a first `[] -> InEar` reading).
+fn should_activate_on_connect(ear_status: &[EarDetectionStatus]) -> bool {
+    ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+}
+
 #[cfg(test)]
 mod grab_tests {
     use super::should_grab_on_insertion;
@@ -1150,6 +1162,32 @@ mod playback_tests {
         assert!(!should_take_on_playback(&[OutOfEar, OutOfEar]));
         assert!(!should_take_on_playback(&[Disconnected, Disconnected]));
         assert!(!should_take_on_playback(&[OutOfEar, Disconnected]));
+    }
+}
+
+#[cfg(test)]
+mod connect_tests {
+    use super::should_activate_on_connect;
+    use crate::bluetooth::aacp::EarDetectionStatus::{self, Disconnected, InEar, OutOfEar};
+
+    #[test]
+    fn activates_when_a_bud_is_in_ear() {
+        assert!(should_activate_on_connect(&[InEar, InEar]));
+        assert!(should_activate_on_connect(&[InEar, OutOfEar]));
+    }
+
+    #[test]
+    fn does_not_activate_when_off_head() {
+        assert!(!should_activate_on_connect(&[OutOfEar, OutOfEar]));
+        assert!(!should_activate_on_connect(&[Disconnected, Disconnected]));
+        assert!(!should_activate_on_connect(&[OutOfEar, Disconnected]));
+    }
+
+    #[test]
+    fn does_not_activate_when_status_unknown() {
+        // A bare connect carries no intent; unknown/empty must not create the sink.
+        let empty: Vec<EarDetectionStatus> = Vec::new();
+        assert!(!should_activate_on_connect(&empty));
     }
 }
 
