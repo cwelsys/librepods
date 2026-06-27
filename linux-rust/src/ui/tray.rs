@@ -75,7 +75,7 @@ impl ksni::Tray for MyTray {
             .and_then(|v| v.get("tray_text_mode").cloned())
             .and_then(|ttm| serde_json::from_value(ttm).ok())
             .unwrap_or(false);
-        let icon = generate_icon(&text, text_mode, any_bud_charging);
+        let icon = generate_icon(&text, text_mode, any_bud_charging, self.connected);
         vec![icon]
     }
     fn tool_tip(&self) -> ToolTip {
@@ -99,11 +99,20 @@ impl ksni::Tray for MyTray {
         let r = format_component("R", self.battery_r, self.battery_r_status);
         let c = format_component("C", self.battery_c, self.battery_c_status);
 
+        let (title, description) = if self.connected {
+            ("Battery Status".to_string(), format!("{} {} {}", l, r, c))
+        } else {
+            // Unreachable (e.g. in the smart case): show last-known values, marked stale.
+            (
+                "Battery Status — Disconnected".to_string(),
+                format!("Disconnected (last known): {} {} {}", l, r, c),
+            )
+        };
         ToolTip {
             icon_name: "".to_string(),
             icon_pixmap: vec![],
-            title: "Battery Status".to_string(),
-            description: format!("{} {} {}", l, r, c),
+            title,
+            description,
         }
     }
     fn menu(&self) -> Vec<ksni::MenuItem<Self>> {
@@ -198,10 +207,19 @@ impl ksni::Tray for MyTray {
     }
 }
 
-fn generate_icon(text: &str, text_mode: bool, charging: bool) -> Icon {
+fn generate_icon(text: &str, text_mode: bool, charging: bool, connected: bool) -> Icon {
     use ab_glyph::{FontRef, PxScale};
     use image::{ImageBuffer, Rgba};
     use imageproc::drawing::draw_text_mut;
+
+    // While disconnected the battery reading is stale (the buds are unreachable and
+    // can't be re-polled), so render in grey instead of the live green. The fill
+    // proportion is kept so the last-known level is still legible. Grey is distinct
+    // from the 128,128,128 background ring so the filled arc stays visible.
+    let disconnected_grey = Rgba([190u8, 190u8, 190u8, 255u8]);
+    // Suppress the charging affordance while disconnected — stale status shouldn't
+    // claim the buds are currently charging.
+    let charging = charging && connected;
 
     let width = 64;
     let height = 64;
@@ -250,7 +268,12 @@ fn generate_icon(text: &str, text_mode: bool, charging: bool) -> Icon {
                     let angle_from_top =
                         (angle + std::f32::consts::PI / 2.0).rem_euclid(2.0 * std::f32::consts::PI);
                     if angle_from_top <= percentage * 2.0 * std::f32::consts::PI {
-                        img.put_pixel(x, y, Rgba([0u8, 255u8, 0u8, 255u8]));
+                        let fill = if connected {
+                            Rgba([0u8, 255u8, 0u8, 255u8])
+                        } else {
+                            disconnected_grey
+                        };
+                        img.put_pixel(x, y, fill);
                     }
                 }
             }
@@ -272,7 +295,9 @@ fn generate_icon(text: &str, text_mode: bool, charging: bool) -> Icon {
     } else {
         // battery text
         let scale = PxScale::from(48.0);
-        let color = if charging {
+        let color = if !connected {
+            Rgba([150u8, 150u8, 150u8, 255u8])
+        } else if charging {
             Rgba([0u8, 255u8, 0u8, 255u8])
         } else {
             Rgba([255u8, 255u8, 255u8, 255u8])

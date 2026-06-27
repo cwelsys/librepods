@@ -295,6 +295,19 @@ async fn async_main(
         if is_connected==0 {
             if uuids.iter().any(|u| u.to_lowercase() == target_uuid) {
                 let _ = connected_tx.send(false);
+                // Mark the tray disconnected so the icon greys out. The last-known
+                // battery values are intentionally left in place (they can't be
+                // re-read while the buds are unreachable); the grey just signals
+                // that the displayed level is stale.
+                if let Some(handle) = tray_handle.clone() {
+                    tokio::spawn(async move {
+                        handle
+                            .update(|tray: &mut MyTray| {
+                                tray.connected = false;
+                            })
+                            .await;
+                    });
+                }
             }
             if let Err(e) = ui_tx.send(BluetoothUIMessage::DeviceDisconnected(addr_str.clone())) {
                 warn!("Failed to send DeviceConnected UI message: {:?}", e);
