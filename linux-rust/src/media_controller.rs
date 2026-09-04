@@ -1,4 +1,6 @@
-use crate::bluetooth::aacp::{AACPManager, ControlCommandIdentifiers, EarDetectionStatus};
+use crate::bluetooth::aacp::{
+    AACPManager, AudioSource, AudioSourceType, ControlCommandIdentifiers, EarDetectionStatus,
+};
 use dbus::arg::RefArg;
 use dbus::blocking::Connection;
 use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
@@ -17,11 +19,6 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
-
-/// How long the buds must read as off-the-head before we drop the ACL and let
-/// them sleep. Long enough to survive taking them off mid-task, short enough
-/// that a set-down doesn't cost hours of idle drain.
-const OFF_HEAD_DISCONNECT_GRACE: Duration = Duration::from_secs(300);
 
 type ControlTx = tokio::sync::mpsc::UnboundedSender<(ControlCommandIdentifiers, Vec<u8>)>;
 
@@ -59,8 +56,6 @@ struct MediaControllerState {
     conv_original_volume: Option<u32>,
     conv_conversation_started: bool,
     playback_listener_running: bool,
-    aacp_manager: Option<AACPManager>,
-    control_tx: Option<ControlTx>,
 }
 
 impl MediaControllerState {
@@ -80,8 +75,6 @@ impl MediaControllerState {
             conv_original_volume: None,
             conv_conversation_started: false,
             playback_listener_running: false,
-            aacp_manager: None,
-            control_tx: None,
         }
     }
 }
@@ -108,8 +101,6 @@ impl MediaController {
             return;
         }
         state.playback_listener_running = true;
-        state.aacp_manager = Some(aacp_manager.clone());
-        state.control_tx = Some(control_tx.clone());
         drop(state);
 
         let controller_clone = self.clone();
@@ -155,8 +146,14 @@ impl MediaController {
                 // would yank the route back onto buds the user just took off, making
                 // ear tracking useless. (Auto-pause on removal is still handled by
                 // handle_ear_detection.)
-                let ear_status = aacp_manager.state.lock().await.ear_detection_status.clone();
-                if should_take_on_playback(&ear_status) {
+                let (ear_status, audio_source) = {
+                    let st = aacp_manager.state.lock().await;
+                    (st.ear_detection_status.clone(), st.audio_source.clone())
+                };
+                let local_mac = self.state.lock().await.local_mac.clone();
+                if already_streaming_from(audio_source.as_ref(), &local_mac) {
+                    info!("PC playback started but the buds already stream from us; not re-hijacking");
+                } else if should_take_on_playback(&ear_status) {
                     info!("PC playback started; taking audio ownership (last-to-play wins)");
                     self.take_audio_ownership(&aacp_manager, &control_tx).await;
                     debug!("completed playback takeover process");
@@ -285,29 +282,6 @@ impl MediaController {
                     debug!("Set user_played_the_media to true as media was playing");
                 }
             }
-            // Grab audio on a fresh insertion unless another device is actively streaming/
-            // on a call (Apple's priority model). Uses the AACP handle stored by the
-            // playback listener.
-            let (aacp_opt, tx_opt, local_mac) = {
-                let state = self.state.lock().await;
-                (
-                    state.aacp_manager.clone(),
-                    state.control_tx.clone(),
-                    state.local_mac.clone(),
-                )
-            };
-            if let (Some(aacp), Some(tx)) = (aacp_opt, tx_opt) {
-                let other_streaming = aacp.any_other_device_streaming(&local_mac).await;
-                if should_grab_on_insertion(new_has_at_least_one_in, old_all_out, other_streaming) {
-                    debug!("Ear insertion: grabbing audio (no other device streaming)");
-                    self.take_audio_ownership(&aacp, &tx).await;
-                } else {
-                    debug!(
-                        "Ear insertion: deferring grab (other_streaming={})",
-                        other_streaming
-                    );
-                }
-            }
         } else if new_all_out && !old_all_out {
             // Only on the *transition* into fully-removed. The buds keep emitting
             // ear-detection packets while sitting out (e.g. OutOfEar -> Disconnected
@@ -329,12 +303,9 @@ impl MediaController {
         // (unknown), not "off head" — releasing on that would tear the sink down
         // right after a reconnect while worn, which is what should_release_a2dp
         // guards against.
-        if should_release_a2dp(&new_statuses) {
-            if self.state.lock().await.a2dp_active {
-                debug!("Buds are off the head and A2DP is active; releasing the sink");
-                self.deactivate_a2dp_profile().await;
-            }
-            self.schedule_off_head_disconnect().await;
+        if should_release_a2dp(&new_statuses) && self.state.lock().await.a2dp_active {
+            debug!("Buds are off the head and A2DP is active; releasing the sink");
+            self.deactivate_a2dp_profile().await;
         }
 
         let reset_user_played = (old_in_ear_data.iter().any(|&b| !b)
@@ -381,52 +352,6 @@ impl MediaController {
             state.old_in_ear_data = new_in_ear_data;
             debug!("Updated old_in_ear_data to {:?}", state.old_in_ear_data);
         }
-    }
-
-    /// Drop the ACL once the buds have been off the head for the grace period.
-    ///
-    /// A live ACL keeps the buds out of deep sleep. Measured on this machine:
-    /// 0.37%/h while connected-but-unused, ~9%/day, which is the whole of the
-    /// "sat on my desk and drained" complaint. Disconnected, they sleep and stop
-    /// advertising; handling them wakes them and `le.rs` auto-connects, the same
-    /// path that already works when they come off the charging stand.
-    ///
-    /// The grace period exists so putting them down for a moment doesn't cost a
-    /// reconnect. It is the knob to turn if this feels too eager or too slow.
-    async fn schedule_off_head_disconnect(&self) {
-        let (mac, aacp) = {
-            let state = self.state.lock().await;
-            (
-                state.connected_device_mac.clone(),
-                state.aacp_manager.clone(),
-            )
-        };
-        if mac.is_empty() {
-            return;
-        }
-        let Some(aacp) = aacp else {
-            debug!("No AACP handle; not scheduling off-head disconnect");
-            return;
-        };
-        tokio::spawn(async move {
-            tokio::time::sleep(OFF_HEAD_DISCONNECT_GRACE).await;
-            // Re-read the live ear state rather than cancelling this task on
-            // re-insertion: overlapping timers are harmless because this check
-            // is the only thing that acts, and it's a no-op once worn again.
-            let ear = aacp.state.lock().await.ear_detection_status.clone();
-            if !should_release_a2dp(&ear) {
-                debug!("Buds worn again ({:?}); keeping the connection", ear);
-                return;
-            }
-            info!(
-                "Buds off the head for {:?}; disconnecting {} so they can sleep",
-                OFF_HEAD_DISCONNECT_GRACE, mac
-            );
-            match disconnect_device(&mac).await {
-                Ok(()) => info!("Disconnected {}", mac),
-                Err(e) => warn!("Failed to disconnect {}: {}", mac, e),
-            }
-        });
     }
 
     pub async fn activate_a2dp_profile(&self) {
@@ -1024,12 +949,6 @@ impl MediaController {
     }
 }
 
-async fn disconnect_device(mac: &str) -> bluer::Result<()> {
-    let session = bluer::Session::new().await?;
-    let adapter = session.default_adapter().await?;
-    adapter.device(mac.parse()?)?.disconnect().await
-}
-
 // --- PulseAudio helpers ---
 
 fn pulse_connect() -> Option<(Mainloop, Context)> {
@@ -1173,12 +1092,14 @@ pub fn transition_sink_volume(sink_name: &str, target_volume: u32) -> bool {
     }
 }
 
-fn should_grab_on_insertion(
-    new_has_at_least_one_in: bool,
-    old_all_out: bool,
-    other_streaming: bool,
-) -> bool {
-    new_has_at_least_one_in && old_all_out && !other_streaming
+/// Whether the buds already report an active stream from this machine. The
+/// AirPods send an Audio Source packet naming the streaming host; if that is us
+/// with a live Media/Call type, a takeover would only re-notify the phone.
+fn already_streaming_from(audio_source: Option<&AudioSource>, local_mac: &str) -> bool {
+    audio_source.is_some_and(|s| {
+        s.mac.eq_ignore_ascii_case(local_mac)
+            && matches!(s.r#type, AudioSourceType::Media | AudioSourceType::Call)
+    })
 }
 
 /// Whether PC playback should grab the audio route, given the latest
@@ -1197,7 +1118,7 @@ fn should_grab_on_insertion(
 /// - **non-empty, all-out** — a real removal reading. The buds are off the head;
 ///   don't grab.
 fn should_take_on_playback(ear_status: &[EarDetectionStatus]) -> bool {
-    ear_status.is_empty() || ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+    ear_status.is_empty() || ear_status.contains(&EarDetectionStatus::InEar)
 }
 
 /// Whether to activate the A2DP sink on (re)connect, given the latest ear reading.
@@ -1209,7 +1130,7 @@ fn should_take_on_playback(ear_status: &[EarDetectionStatus]) -> bool {
 /// `handle_ear_detection` is the backstop that activates when the buds are actually
 /// put in (it fires even from a first `[] -> InEar` reading).
 fn should_activate_on_connect(ear_status: &[EarDetectionStatus]) -> bool {
-    ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+    ear_status.contains(&EarDetectionStatus::InEar)
 }
 
 /// Whether to tear the A2DP sink back down, given the latest ear reading.
@@ -1220,7 +1141,7 @@ fn should_activate_on_connect(ear_status: &[EarDetectionStatus]) -> bool {
 /// a reconnect — releasing there would drop the sink out from under buds the
 /// user is wearing.
 fn should_release_a2dp(ear_status: &[EarDetectionStatus]) -> bool {
-    !ear_status.is_empty() && !ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+    !ear_status.is_empty() && !ear_status.contains(&EarDetectionStatus::InEar)
 }
 
 #[cfg(test)]
@@ -1252,23 +1173,31 @@ mod release_tests {
 }
 
 #[cfg(test)]
-mod grab_tests {
-    use super::should_grab_on_insertion;
+mod already_streaming_tests {
+    use super::already_streaming_from;
+    use crate::bluetooth::aacp::{AudioSource, AudioSourceType};
 
-    #[test]
-    fn grabs_on_insertion_when_nothing_else_active() {
-        assert!(should_grab_on_insertion(true, true, false));
+    fn src(mac: &str, t: AudioSourceType) -> AudioSource {
+        AudioSource { mac: mac.into(), r#type: t }
     }
 
     #[test]
-    fn defers_when_other_device_streaming() {
-        assert!(!should_grab_on_insertion(true, true, true));
+    fn skips_when_we_are_the_live_stream() {
+        let s = src("e8:65:38:5f:17:44", AudioSourceType::Media);
+        assert!(already_streaming_from(Some(&s), "E8:65:38:5F:17:44"));
     }
 
     #[test]
-    fn no_grab_without_insertion_transition() {
-        assert!(!should_grab_on_insertion(true, false, false)); // not a fresh out->in
-        assert!(!should_grab_on_insertion(false, true, false)); // nothing now in ear
+    fn hijacks_after_reconnect_when_stream_is_idle_or_unknown() {
+        let idle = src("E8:65:38:5F:17:44", AudioSourceType::None);
+        assert!(!already_streaming_from(Some(&idle), "E8:65:38:5F:17:44"));
+        assert!(!already_streaming_from(None, "E8:65:38:5F:17:44"));
+    }
+
+    #[test]
+    fn hijacks_when_the_phone_is_streaming() {
+        let phone = src("48:35:2B:97:EB:20", AudioSourceType::Media);
+        assert!(!already_streaming_from(Some(&phone), "E8:65:38:5F:17:44"));
     }
 }
 

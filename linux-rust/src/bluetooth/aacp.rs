@@ -1331,13 +1331,6 @@ impl AACPManager {
             .await
     }
 
-    pub async fn any_other_device_streaming(&self, local_mac: &str) -> bool {
-        let state = self.state.lock().await;
-        state
-            .device_streaming
-            .iter()
-            .any(|(mac, &streaming)| streaming && mac != local_mac)
-    }
 }
 
 async fn recv_thread(manager: AACPManager, sp: Arc<SeqPacket>) {

@@ -223,18 +223,7 @@ async fn run_monitor_once(
                                                 cooldown,
                                             )
                                         };
-                                        if !worn {
-                                            // Buds are advertising but nobody is wearing
-                                            // them: off the charger into a bag, or sat on a
-                                            // desk. Connecting here is what pinned them
-                                            // awake at ~9%/day. Leave them alone; putting
-                                            // them on flips this bit in the next advert and
-                                            // we connect then.
-                                            debug!(
-                                                "Buds for {} are not in an ear; not auto-connecting.",
-                                                matched_airpods_mac.as_ref().unwrap()
-                                            );
-                                        } else if within_cooldown {
+                                        if within_cooldown {
                                             debug!(
                                                 "Within reconnect cooldown for {}, skipping advertisement.",
                                                 matched_airpods_mac.as_ref().unwrap()
