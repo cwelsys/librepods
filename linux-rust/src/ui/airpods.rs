@@ -1,4 +1,6 @@
-use crate::bluetooth::aacp::{AACPManager, BatteryComponent, BatteryStatus, ControlCommandIdentifiers};
+use crate::bluetooth::aacp::{
+    AACPManager, BatteryComponent, BatteryStatus, ControlCommandIdentifiers,
+};
 use iced::Alignment::End;
 use iced::border::Radius;
 use iced::widget::button::Style;
@@ -20,8 +22,7 @@ use crate::devices::enums::{
 use crate::ui::window::Message;
 
 // Embed the listening mode icons at compile time from the Android assets
-const ICON_NOISE_CANCELLATION: &[u8] =
-    include_bytes!("../../assets/icons/noise_cancellation.png");
+const ICON_NOISE_CANCELLATION: &[u8] = include_bytes!("../../assets/icons/noise_cancellation.png");
 const ICON_TRANSPARENCY: &[u8] = include_bytes!("../../assets/icons/transparency.png");
 const ICON_ADAPTIVE: &[u8] = include_bytes!("../../assets/icons/adaptive.png");
 
@@ -73,11 +74,9 @@ fn battery_column<'a>(
     let is_charging = status == Some(BatteryStatus::Charging);
     let opacity = if is_disconnected { 0.35 } else { 1.0 };
 
-    let device_img = container(
-        image(image::Handle::from_bytes(img_bytes))
-            .width(Length::Fixed(img_width))
-    )
-    .center_x(Length::Fill);
+    let device_img =
+        container(image(image::Handle::from_bytes(img_bytes)).width(Length::Fixed(img_width)))
+            .center_x(Length::Fill);
 
     // Bar width and height constants
     let bar_total_width = 80.0_f32;
@@ -92,9 +91,7 @@ fn battery_column<'a>(
                 .height(bar_height)
                 .style(move |theme: &Theme| {
                     let mut s = container::Style::default();
-                    s.background = Some(Background::Color(
-                        theme.palette().text.scale_alpha(0.08),
-                    ));
+                    s.background = Some(Background::Color(theme.palette().text.scale_alpha(0.08)));
                     s.border = Border::default().rounded(4);
                     s
                 }),
@@ -123,11 +120,14 @@ fn battery_column<'a>(
         let bar_fill = (lvl as f32 / 100.0).clamp(0.02, 1.0);
 
         let charging_indicator: iced::Element<'a, Message> = if is_charging {
-            text(" ⚡").size(12).style(move |_theme: &Theme| {
-                let mut s = text::Style::default();
-                s.color = Some(Color::from_rgb(0.19, 0.82, 0.35));
-                s
-            }).into()
+            text(" ⚡")
+                .size(12)
+                .style(move |_theme: &Theme| {
+                    let mut s = text::Style::default();
+                    s.color = Some(Color::from_rgb(0.19, 0.82, 0.35));
+                    s
+                })
+                .into()
         } else {
             Space::new().into()
         };
@@ -151,9 +151,7 @@ fn battery_column<'a>(
             .height(bar_height)
             .style(move |theme: &Theme| {
                 let mut s = container::Style::default();
-                s.background = Some(Background::Color(
-                    theme.palette().text.scale_alpha(0.1),
-                ));
+                s.background = Some(Background::Color(theme.palette().text.scale_alpha(0.1)));
                 s.border = Border::default().rounded(4);
                 s
             }),
@@ -179,12 +177,7 @@ fn battery_column<'a>(
     };
 
     container(
-        column![
-            device_img,
-            Space::new().height(8),
-            bar_and_text
-        ]
-        .align_x(iced::Alignment::Center)
+        column![device_img, Space::new().height(8), bar_and_text].align_x(iced::Alignment::Center),
     )
     .style(move |_theme: &Theme| {
         let mut s = container::Style::default();
@@ -204,7 +197,9 @@ fn battery_view<'a>(state: &'a AirPodsState) -> iced::Element<'a, Message> {
     let battery = &state.battery;
 
     // Check for headphone-only (AirPods Max)
-    let headphone = battery.iter().find(|b| b.component == BatteryComponent::Headphone);
+    let headphone = battery
+        .iter()
+        .find(|b| b.component == BatteryComponent::Headphone);
 
     if state.model.is_over_ear() || headphone.is_some() {
         // AirPods Max: single headphone display
@@ -212,22 +207,26 @@ fn battery_view<'a>(state: &'a AirPodsState) -> iced::Element<'a, Message> {
         let level = hp.map(|b| b.level);
         let status = hp.map(|b| b.status);
 
-        container(
-            battery_column(bud_bytes, "", level, status, 80.0)
-        )
-        .center_x(Length::Fill)
-        .padding(Padding {
-            top: 12.0,
-            bottom: 12.0,
-            left: 20.0,
-            right: 20.0,
-        })
-        .into()
+        container(battery_column(bud_bytes, "", level, status, 80.0))
+            .center_x(Length::Fill)
+            .padding(Padding {
+                top: 12.0,
+                bottom: 12.0,
+                left: 20.0,
+                right: 20.0,
+            })
+            .into()
     } else {
         // Earbuds: L + R + Case
-        let left = battery.iter().find(|b| b.component == BatteryComponent::Left);
-        let right = battery.iter().find(|b| b.component == BatteryComponent::Right);
-        let case = battery.iter().find(|b| b.component == BatteryComponent::Case);
+        let left = battery
+            .iter()
+            .find(|b| b.component == BatteryComponent::Left);
+        let right = battery
+            .iter()
+            .find(|b| b.component == BatteryComponent::Right);
+        let case = battery
+            .iter()
+            .find(|b| b.component == BatteryComponent::Case);
 
         let left_level = left.map(|b| b.level);
         let left_status = left.map(|b| b.status);
@@ -243,7 +242,7 @@ fn battery_view<'a>(state: &'a AirPodsState) -> iced::Element<'a, Message> {
                 battery_column(case_bytes, "Case", case_level, case_status, 60.0)
             ]
             .spacing(24)
-            .align_y(iced::Alignment::End)
+            .align_y(iced::Alignment::End),
         )
         .center_x(Length::Fill)
         .padding(Padding {
@@ -286,8 +285,10 @@ fn listening_mode_button<'a>(
             .into()
     };
 
-    let label_text = text(label).size(11).align_x(Center).style(
-        move |theme: &Theme| {
+    let label_text = text(label)
+        .size(11)
+        .align_x(Center)
+        .style(move |theme: &Theme| {
             let mut style = text::Style::default();
             style.color = Some(if is_selected {
                 theme.palette().primary
@@ -295,8 +296,7 @@ fn listening_mode_button<'a>(
                 theme.palette().text.scale_alpha(0.7)
             });
             style
-        },
-    );
+        });
 
     let content = column![icon_element, label_text]
         .spacing(4)
@@ -453,24 +453,19 @@ pub fn airpods_view<'a>(
         mac.clone(),
     ));
 
-    let listening_mode = container(
-        column![
-            container(
-                text("Listening Mode").size(18).style(|theme: &Theme| {
-                    let mut style = text::Style::default();
-                    style.color = Some(theme.palette().primary);
-                    style
-                })
-            )
-            .padding(Padding {
-                top: 0.0,
-                bottom: 4.0,
-                left: 4.0,
-                right: 4.0,
-            }),
-            container(
-                row(mode_buttons).spacing(6)
-            )
+    let listening_mode = container(column![
+        container(text("Listening Mode").size(18).style(|theme: &Theme| {
+            let mut style = text::Style::default();
+            style.color = Some(theme.palette().primary);
+            style
+        }))
+        .padding(Padding {
+            top: 0.0,
+            bottom: 4.0,
+            left: 4.0,
+            right: 4.0,
+        }),
+        container(row(mode_buttons).spacing(6))
             .padding(Padding {
                 top: 4.0,
                 bottom: 4.0,
@@ -486,8 +481,7 @@ pub fn airpods_view<'a>(
                 style.border = border.rounded(16);
                 style
             })
-        ]
-    )
+    ])
     .padding(Padding {
         top: 5.0,
         bottom: 5.0,
@@ -627,16 +621,22 @@ pub fn airpods_view<'a>(
     let mut information_col = column![];
     if let Some(device) = devices_list.get(mac_information.as_str()) {
         if let Some(DeviceInformation::AirPods(ref airpods_info)) = device.information {
-            let chevron = if show_device_info { "\u{25be}" } else { "\u{25b8}" };
+            let chevron = if show_device_info {
+                "\u{25be}"
+            } else {
+                "\u{25b8}"
+            };
             let header = button(
                 row![
-                    text(format!("{} Device Information", chevron)).size(18).style(|theme: &Theme| {
-                        let mut style = text::Style::default();
-                        style.color = Some(theme.palette().primary);
-                        style
-                    }),
+                    text(format!("{} Device Information", chevron))
+                        .size(18)
+                        .style(|theme: &Theme| {
+                            let mut style = text::Style::default();
+                            style.color = Some(theme.palette().primary);
+                            style
+                        }),
                 ]
-                .align_y(iced::Alignment::Center)
+                .align_y(iced::Alignment::Center),
             )
             .style(|_theme: &Theme, _status| {
                 let mut style = Style::default();
@@ -654,9 +654,17 @@ pub fn airpods_view<'a>(
 
             if show_device_info {
                 let serial_display = |serial: String| -> String {
-                    if show_serials { serial } else { "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}".to_string() }
+                    if show_serials {
+                        serial
+                    } else {
+                        "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}".to_string()
+                    }
                 };
-                let eye_icon = if show_serials { "\u{1f441}" } else { "\u{25c9}" };
+                let eye_icon = if show_serials {
+                    "\u{1f441}"
+                } else {
+                    "\u{25c9}"
+                };
 
                 let info_rows = column![
                     row![
@@ -669,7 +677,8 @@ pub fn airpods_view<'a>(
                         text(match airpods_info.friendly_model_name() {
                             Some(name) => format!("{} ({})", airpods_info.model_number, name),
                             None => airpods_info.model_number.clone(),
-                        }).size(16)
+                        })
+                        .size(16)
                     ],
                     row![
                         text("Manufacturer").size(16).style(|theme: &Theme| {
@@ -691,16 +700,18 @@ pub fn airpods_view<'a>(
                             row![
                                 text(serial_display(airpods_info.serial_number.clone())).size(16),
                                 text(eye_icon).size(14),
-                            ].spacing(6).align_y(iced::Alignment::Center)
+                            ]
+                            .spacing(6)
+                            .align_y(iced::Alignment::Center)
                         )
-                            .style(|theme: &Theme, _status| {
-                                let mut style = Style::default();
-                                style.text_color = theme.palette().text;
-                                style.background = Some(Background::Color(Color::TRANSPARENT));
-                                style
-                            })
-                            .padding(0)
-                            .on_press(Message::ToggleSerialVisibility)
+                        .style(|theme: &Theme, _status| {
+                            let mut style = Style::default();
+                            style.text_color = theme.palette().text;
+                            style.background = Some(Background::Color(Color::TRANSPARENT));
+                            style
+                        })
+                        .padding(0)
+                        .on_press(Message::ToggleSerialVisibility)
                     ],
                     row![
                         text("Left Serial Number").size(16).style(|theme: &Theme| {
@@ -711,18 +722,21 @@ pub fn airpods_view<'a>(
                         Space::new().width(Length::Fill),
                         button(
                             row![
-                                text(serial_display(airpods_info.left_serial_number.clone())).size(16),
+                                text(serial_display(airpods_info.left_serial_number.clone()))
+                                    .size(16),
                                 text(eye_icon).size(14),
-                            ].spacing(6).align_y(iced::Alignment::Center)
+                            ]
+                            .spacing(6)
+                            .align_y(iced::Alignment::Center)
                         )
-                            .style(|theme: &Theme, _status| {
-                                let mut style = Style::default();
-                                style.text_color = theme.palette().text;
-                                style.background = Some(Background::Color(Color::TRANSPARENT));
-                                style
-                            })
-                            .padding(0)
-                            .on_press(Message::ToggleSerialVisibility)
+                        .style(|theme: &Theme, _status| {
+                            let mut style = Style::default();
+                            style.text_color = theme.palette().text;
+                            style.background = Some(Background::Color(Color::TRANSPARENT));
+                            style
+                        })
+                        .padding(0)
+                        .on_press(Message::ToggleSerialVisibility)
                     ],
                     row![
                         text("Right Serial Number").size(16).style(|theme: &Theme| {
@@ -733,18 +747,21 @@ pub fn airpods_view<'a>(
                         Space::new().width(Length::Fill),
                         button(
                             row![
-                                text(serial_display(airpods_info.right_serial_number.clone())).size(16),
+                                text(serial_display(airpods_info.right_serial_number.clone()))
+                                    .size(16),
                                 text(eye_icon).size(14),
-                            ].spacing(6).align_y(iced::Alignment::Center)
+                            ]
+                            .spacing(6)
+                            .align_y(iced::Alignment::Center)
                         )
-                            .style(|theme: &Theme, _status| {
-                                let mut style = Style::default();
-                                style.text_color = theme.palette().text;
-                                style.background = Some(Background::Color(Color::TRANSPARENT));
-                                style
-                            })
-                            .padding(0)
-                            .on_press(Message::ToggleSerialVisibility)
+                        .style(|theme: &Theme, _status| {
+                            let mut style = Style::default();
+                            style.text_color = theme.palette().text;
+                            style.background = Some(Background::Color(Color::TRANSPARENT));
+                            style
+                        })
+                        .padding(0)
+                        .on_press(Message::ToggleSerialVisibility)
                     ],
                     row![
                         text("Version 1").size(16).style(|theme: &Theme| {
@@ -824,8 +841,7 @@ pub fn airpods_view<'a>(
     .padding(20)
     .center_x(Length::Fill);
 
-    container(scrollable(content).height(Length::Fill))
-        .height(Length::Fill)
+    container(scrollable(content).height(Length::Fill)).height(Length::Fill)
 }
 
 fn run_async_in_thread<F>(fut: F)

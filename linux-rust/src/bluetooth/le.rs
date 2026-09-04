@@ -16,7 +16,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
-fn backoff_ok(last_attempt: Option<std::time::Instant>, now: std::time::Instant, cooldown: std::time::Duration) -> bool {
+fn backoff_ok(
+    last_attempt: Option<std::time::Instant>,
+    now: std::time::Instant,
+    cooldown: std::time::Duration,
+) -> bool {
     match last_attempt {
         None => true,
         Some(t) => now.duration_since(t) >= cooldown,
@@ -181,22 +185,56 @@ async fn run_monitor_once(
                                             hex::encode(decrypted)
                                         );
 
+                                        let status = apple_data[5] as usize;
+                                        let primary_left = (status >> 5) & 0x01 == 1;
+                                        let this_in_case = (status >> 6) & 0x01 == 1;
+                                        let xor_factor = primary_left ^ this_in_case;
+                                        let is_left_in_ear = if xor_factor {
+                                            (status & 0x02) != 0
+                                        } else {
+                                            (status & 0x08) != 0
+                                        };
+                                        let is_right_in_ear = if xor_factor {
+                                            (status & 0x08) != 0
+                                        } else {
+                                            (status & 0x02) != 0
+                                        };
+                                        let is_flipped = !primary_left;
+                                        let worn = is_left_in_ear || is_right_in_ear;
+
                                         let connection_state = apple_data[10] as usize;
-                                        debug!("Connection state: {}", connection_state);
+                                        debug!(
+                                            "Connection state: {}, worn: {}",
+                                            connection_state, worn
+                                        );
                                         // Auto-connect whenever the buds are out and reachable,
                                         // regardless of whether another device (the phone)
                                         // currently holds them — true multipoint presence.
                                         // (The old `== 0x00` gate never fired because the phone
                                         // claims them first.)
-                                        let real_address =
-                                            Address::from_str(&addr_str).unwrap();
+                                        let real_address = Address::from_str(&addr_str).unwrap();
                                         let now = std::time::Instant::now();
                                         let cooldown = std::time::Duration::from_secs(10);
                                         let within_cooldown = {
                                             let la = last_attempt_clone.lock().await;
-                                            !backoff_ok(la.get(&real_address).copied(), now, cooldown)
+                                            !backoff_ok(
+                                                la.get(&real_address).copied(),
+                                                now,
+                                                cooldown,
+                                            )
                                         };
-                                        if within_cooldown {
+                                        if !worn {
+                                            // Buds are advertising but nobody is wearing
+                                            // them: off the charger into a bag, or sat on a
+                                            // desk. Connecting here is what pinned them
+                                            // awake at ~9%/day. Leave them alone; putting
+                                            // them on flips this bit in the next advert and
+                                            // we connect then.
+                                            debug!(
+                                                "Buds for {} are not in an ear; not auto-connecting.",
+                                                matched_airpods_mac.as_ref().unwrap()
+                                            );
+                                        } else if within_cooldown {
                                             debug!(
                                                 "Within reconnect cooldown for {}, skipping advertisement.",
                                                 matched_airpods_mac.as_ref().unwrap()
@@ -247,12 +285,13 @@ async fn run_monitor_once(
                                                     //     info!("Successfully connected to AirPods {}", matched_airpods_mac.as_ref().unwrap());
                                                     // }
                                                     // call bluetoothctl connect <mac> for now, I don't know why bluer connect isn't working
-                                                    let output =
-                                                        tokio::process::Command::new("bluetoothctl")
-                                                            .arg("connect")
-                                                            .arg(matched_airpods_mac.as_ref().unwrap())
-                                                            .output()
-                                                            .await;
+                                                    let output = tokio::process::Command::new(
+                                                        "bluetoothctl",
+                                                    )
+                                                    .arg("connect")
+                                                    .arg(matched_airpods_mac.as_ref().unwrap())
+                                                    .output()
+                                                    .await;
                                                     match output {
                                                         Ok(output) => {
                                                             if output.status.success() {
@@ -284,7 +323,9 @@ async fn run_monitor_once(
                                                         Err(e) => {
                                                             info!(
                                                                 "Failed to execute bluetoothctl to connect to AirPods {}: {}",
-                                                                matched_airpods_mac.as_ref().unwrap(),
+                                                                matched_airpods_mac
+                                                                    .as_ref()
+                                                                    .unwrap(),
                                                                 e
                                                             );
                                                             cm.remove(&real_address);
@@ -298,22 +339,6 @@ async fn run_monitor_once(
                                                 );
                                             }
                                         }
-
-                                        let status = apple_data[5] as usize;
-                                        let primary_left = (status >> 5) & 0x01 == 1;
-                                        let this_in_case = (status >> 6) & 0x01 == 1;
-                                        let xor_factor = primary_left ^ this_in_case;
-                                        let is_left_in_ear = if xor_factor {
-                                            (status & 0x02) != 0
-                                        } else {
-                                            (status & 0x08) != 0
-                                        };
-                                        let is_right_in_ear = if xor_factor {
-                                            (status & 0x08) != 0
-                                        } else {
-                                            (status & 0x02) != 0
-                                        };
-                                        let is_flipped = !primary_left;
 
                                         let left_byte_index = if is_flipped { 2 } else { 1 };
                                         let right_byte_index = if is_flipped { 1 } else { 2 };
@@ -477,12 +502,14 @@ pub async fn start_le_monitor(
         // time this session isn't in the file yet when the monitor first starts.
         // Reloading here means the monitor picks up that pair after its first
         // connect/disconnect cycle instead of requiring an app restart.
-        let all_devices: HashMap<String, DeviceData> =
-            std::fs::read_to_string(get_devices_path())
-                .ok()
-                .and_then(|s| serde_json::from_str(&s).ok())
-                .unwrap_or_default();
-        debug!("LE monitor (re)loaded {} known device(s)", all_devices.len());
+        let all_devices: HashMap<String, DeviceData> = std::fs::read_to_string(get_devices_path())
+            .ok()
+            .and_then(|s| serde_json::from_str(&s).ok())
+            .unwrap_or_default();
+        debug!(
+            "LE monitor (re)loaded {} known device(s)",
+            all_devices.len()
+        );
 
         let monitor_task = tokio::spawn(run_monitor_once(
             adapter.clone(),

@@ -1,5 +1,4 @@
-use crate::bluetooth::aacp::AACPManager;
-use crate::bluetooth::aacp::EarDetectionStatus;
+use crate::bluetooth::aacp::{AACPManager, ControlCommandIdentifiers, EarDetectionStatus};
 use dbus::arg::RefArg;
 use dbus::blocking::Connection;
 use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
@@ -18,6 +17,13 @@ use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::Mutex;
+
+/// How long the buds must read as off-the-head before we drop the ACL and let
+/// them sleep. Long enough to survive taking them off mid-task, short enough
+/// that a set-down doesn't cost hours of idle drain.
+const OFF_HEAD_DISCONNECT_GRACE: Duration = Duration::from_secs(300);
+
+type ControlTx = tokio::sync::mpsc::UnboundedSender<(ControlCommandIdentifiers, Vec<u8>)>;
 
 #[derive(Clone, Debug)]
 struct OwnedCardProfileInfo {
@@ -49,12 +55,12 @@ struct MediaControllerState {
     user_played_the_media: bool,
     i_paused_the_media: bool,
     ear_detection_enabled: bool,
-    disconnect_when_not_wearing: bool,
+    a2dp_active: bool,
     conv_original_volume: Option<u32>,
     conv_conversation_started: bool,
     playback_listener_running: bool,
     aacp_manager: Option<AACPManager>,
-    control_tx: Option<tokio::sync::mpsc::UnboundedSender<(crate::bluetooth::aacp::ControlCommandIdentifiers, Vec<u8>)>>,
+    control_tx: Option<ControlTx>,
 }
 
 impl MediaControllerState {
@@ -70,7 +76,7 @@ impl MediaControllerState {
             user_played_the_media: false,
             i_paused_the_media: false,
             ear_detection_enabled: true,
-            disconnect_when_not_wearing: true,
+            a2dp_active: false,
             conv_original_volume: None,
             conv_conversation_started: false,
             playback_listener_running: false,
@@ -95,14 +101,7 @@ impl MediaController {
         }
     }
 
-    pub async fn start_playback_listener(
-        &self,
-        aacp_manager: AACPManager,
-        control_tx: tokio::sync::mpsc::UnboundedSender<(
-            crate::bluetooth::aacp::ControlCommandIdentifiers,
-            Vec<u8>,
-        )>,
-    ) {
+    pub async fn start_playback_listener(&self, aacp_manager: AACPManager, control_tx: ControlTx) {
         let mut state = self.state.lock().await;
         if state.playback_listener_running {
             debug!("Playback listener already running");
@@ -121,14 +120,7 @@ impl MediaController {
         });
     }
 
-    async fn playback_listener_loop(
-        &self,
-        aacp_manager: AACPManager,
-        control_tx: tokio::sync::mpsc::UnboundedSender<(
-            crate::bluetooth::aacp::ControlCommandIdentifiers,
-            Vec<u8>,
-        )>,
-    ) {
+    async fn playback_listener_loop(&self, aacp_manager: AACPManager, control_tx: ControlTx) {
         info!("Starting playback listener loop");
         loop {
             tokio::time::sleep(Duration::from_millis(500)).await;
@@ -142,7 +134,7 @@ impl MediaController {
                 break;
             }
 
-            let is_playing = tokio::task::spawn_blocking(|| Self::check_if_playing())
+            let is_playing = tokio::task::spawn_blocking(Self::check_if_playing)
                 .await
                 .unwrap_or(false);
 
@@ -163,12 +155,7 @@ impl MediaController {
                 // would yank the route back onto buds the user just took off, making
                 // ear tracking useless. (Auto-pause on removal is still handled by
                 // handle_ear_detection.)
-                let ear_status = aacp_manager
-                    .state
-                    .lock()
-                    .await
-                    .ear_detection_status
-                    .clone();
+                let ear_status = aacp_manager.state.lock().await.ear_detection_status.clone();
                 if should_take_on_playback(&ear_status) {
                     info!("PC playback started; taking audio ownership (last-to-play wins)");
                     self.take_audio_ownership(&aacp_manager, &control_tx).await;
@@ -184,24 +171,26 @@ impl MediaController {
         self.state.lock().await.playback_listener_running = false;
     }
 
-    pub async fn take_audio_ownership(
-        &self,
-        aacp_manager: &AACPManager,
-        control_tx: &tokio::sync::mpsc::UnboundedSender<(crate::bluetooth::aacp::ControlCommandIdentifiers, Vec<u8>)>,
-    ) {
+    pub async fn take_audio_ownership(&self, aacp_manager: &AACPManager, control_tx: &ControlTx) {
         let local_mac = self.state.lock().await.local_mac.clone();
         let connected_devices = aacp_manager.state.lock().await.connected_devices.clone();
         info!("Taking audio ownership and activating a2dp");
-        let _ = control_tx.send((crate::bluetooth::aacp::ControlCommandIdentifiers::OwnsConnection, vec![0x01]));
+        let _ = control_tx.send((ControlCommandIdentifiers::OwnsConnection, vec![0x01]));
         self.activate_a2dp_profile().await;
         info!("hijacking connection by asking AirPods");
         for device in connected_devices {
             if device.mac != local_mac {
-                if let Err(e) = aacp_manager.send_media_information(&local_mac, &device.mac, true).await {
+                if let Err(e) = aacp_manager
+                    .send_media_information(&local_mac, &device.mac, true)
+                    .await
+                {
                     error!("Failed to send media information to {}: {}", device.mac, e);
                 }
                 if let Err(e) = aacp_manager.send_smart_routing_show_ui(&device.mac).await {
-                    error!("Failed to send smart routing show ui to {}: {}", device.mac, e);
+                    error!(
+                        "Failed to send smart routing show ui to {}: {}",
+                        device.mac, e
+                    );
                 }
                 if let Err(e) = aacp_manager.send_hijack_request(&device.mac).await {
                     error!("Failed to send hijack request to {}: {}", device.mac, e);
@@ -216,12 +205,7 @@ impl MediaController {
     /// and route audio to buds that aren't being worn. The ear-insertion branch in
     /// `handle_ear_detection` activates later if the buds are put in.
     pub async fn activate_a2dp_on_connect(&self, aacp_manager: &AACPManager) {
-        let ear_status = aacp_manager
-            .state
-            .lock()
-            .await
-            .ear_detection_status
-            .clone();
+        let ear_status = aacp_manager.state.lock().await.ear_detection_status.clone();
         if should_activate_on_connect(&ear_status) {
             info!(
                 "Connect: buds in ear (ear_status={:?}); activating A2DP sink",
@@ -306,7 +290,11 @@ impl MediaController {
             // playback listener.
             let (aacp_opt, tx_opt, local_mac) = {
                 let state = self.state.lock().await;
-                (state.aacp_manager.clone(), state.control_tx.clone(), state.local_mac.clone())
+                (
+                    state.aacp_manager.clone(),
+                    state.control_tx.clone(),
+                    state.local_mac.clone(),
+                )
             };
             if let (Some(aacp), Some(tx)) = (aacp_opt, tx_opt) {
                 let other_streaming = aacp.any_other_device_streaming(&local_mac).await;
@@ -314,7 +302,10 @@ impl MediaController {
                     debug!("Ear insertion: grabbing audio (no other device streaming)");
                     self.take_audio_ownership(&aacp, &tx).await;
                 } else {
-                    debug!("Ear insertion: deferring grab (other_streaming={})", other_streaming);
+                    debug!(
+                        "Ear insertion: deferring grab (other_streaming={})",
+                        other_streaming
+                    );
                 }
             }
         } else if new_all_out && !old_all_out {
@@ -325,14 +316,25 @@ impl MediaController {
             // sink after taking the buds off.
             debug!("Condition met: buds removed, pausing media");
             self.pause().await;
-            {
-                let state = self.state.lock().await;
-                if state.disconnect_when_not_wearing {
-                    debug!("Disconnect when not wearing enabled, deactivating A2DP");
-                    drop(state);
-                    self.deactivate_a2dp_profile().await;
-                }
+        }
+
+        // Release the sink on *any* definitive all-out reading, not just the
+        // worn -> removed transition. The route gets re-grabbed while the buds
+        // sit out (PC playback takes ownership, which activates A2DP), and a
+        // transition-only release leaves the buds streaming on a desk until the
+        // next insertion. Measured at ~28 min/day of A2DP active with no bud in
+        // ear, in stretches of up to 1h42m.
+        //
+        // An *empty* reading means "no ear packet this AACP session yet"
+        // (unknown), not "off head" — releasing on that would tear the sink down
+        // right after a reconnect while worn, which is what should_release_a2dp
+        // guards against.
+        if should_release_a2dp(&new_statuses) {
+            if self.state.lock().await.a2dp_active {
+                debug!("Buds are off the head and A2DP is active; releasing the sink");
+                self.deactivate_a2dp_profile().await;
             }
+            self.schedule_off_head_disconnect().await;
         }
 
         let reset_user_played = (old_in_ear_data.iter().any(|&b| !b)
@@ -379,6 +381,52 @@ impl MediaController {
             state.old_in_ear_data = new_in_ear_data;
             debug!("Updated old_in_ear_data to {:?}", state.old_in_ear_data);
         }
+    }
+
+    /// Drop the ACL once the buds have been off the head for the grace period.
+    ///
+    /// A live ACL keeps the buds out of deep sleep. Measured on this machine:
+    /// 0.37%/h while connected-but-unused, ~9%/day, which is the whole of the
+    /// "sat on my desk and drained" complaint. Disconnected, they sleep and stop
+    /// advertising; handling them wakes them and `le.rs` auto-connects, the same
+    /// path that already works when they come off the charging stand.
+    ///
+    /// The grace period exists so putting them down for a moment doesn't cost a
+    /// reconnect. It is the knob to turn if this feels too eager or too slow.
+    async fn schedule_off_head_disconnect(&self) {
+        let (mac, aacp) = {
+            let state = self.state.lock().await;
+            (
+                state.connected_device_mac.clone(),
+                state.aacp_manager.clone(),
+            )
+        };
+        if mac.is_empty() {
+            return;
+        }
+        let Some(aacp) = aacp else {
+            debug!("No AACP handle; not scheduling off-head disconnect");
+            return;
+        };
+        tokio::spawn(async move {
+            tokio::time::sleep(OFF_HEAD_DISCONNECT_GRACE).await;
+            // Re-read the live ear state rather than cancelling this task on
+            // re-insertion: overlapping timers are harmless because this check
+            // is the only thing that acts, and it's a no-op once worn again.
+            let ear = aacp.state.lock().await.ear_detection_status.clone();
+            if !should_release_a2dp(&ear) {
+                debug!("Buds worn again ({:?}); keeping the connection", ear);
+                return;
+            }
+            info!(
+                "Buds off the head for {:?}; disconnecting {} so they can sleep",
+                OFF_HEAD_DISCONNECT_GRACE, mac
+            );
+            match disconnect_device(&mac).await {
+                Ok(()) => info!("Disconnected {}", mac),
+                Err(e) => warn!("Failed to disconnect {}: {}", mac, e),
+            }
+        });
     }
 
     pub async fn activate_a2dp_profile(&self) {
@@ -447,6 +495,7 @@ impl MediaController {
 
             if success {
                 info!("Successfully activated A2DP profile: {}", preferred_profile);
+                self.state.lock().await.a2dp_active = true;
             } else {
                 warn!("Failed to activate A2DP profile: {}", preferred_profile);
             }
@@ -467,11 +516,8 @@ impl MediaController {
 
             for service in Self::list_mpris_services(&conn) {
                 debug!("Checking playback status for service: {}", service);
-                let proxy = conn.with_proxy(
-                    &service,
-                    "/org/mpris/MediaPlayer2",
-                    Duration::from_secs(5),
-                );
+                let proxy =
+                    conn.with_proxy(&service, "/org/mpris/MediaPlayer2", Duration::from_secs(5));
 
                 if let Ok(playback_status) =
                     proxy.get::<String>("org.mpris.MediaPlayer2.Player", "PlaybackStatus")
@@ -495,8 +541,8 @@ impl MediaController {
 
             paused_services
         })
-            .await
-            .unwrap_or_default();
+        .await
+        .unwrap_or_default();
 
         if !paused_services.is_empty() {
             info!("Paused {} media player(s) via DBus", paused_services.len());
@@ -542,11 +588,14 @@ impl MediaController {
             }
             paused_count
         })
-            .await
-            .unwrap_or_default();
+        .await
+        .unwrap_or_default();
 
         if paused_count > 0 {
-            info!("Paused {} media player(s) due to ownership loss", paused_count);
+            info!(
+                "Paused {} media player(s) due to ownership loss",
+                paused_count
+            );
             self.state.lock().await.is_playing = false;
         } else {
             debug!("No playing media players found to pause");
@@ -583,8 +632,8 @@ impl MediaController {
             }
             resumed_count
         })
-            .await
-            .unwrap_or_default();
+        .await
+        .unwrap_or_default();
 
         if resumed_count > 0 {
             info!("Resumed {} media player(s) via DBus", resumed_count);
@@ -626,8 +675,8 @@ impl MediaController {
             debug!("A2DP profile available: {}", available);
             available
         })
-            .await
-            .unwrap_or(false)
+        .await
+        .unwrap_or(false)
     }
 
     async fn get_preferred_a2dp_profile(&self) -> String {
@@ -672,8 +721,8 @@ impl MediaController {
             debug!("Profile {} available: {}", profile_name, available);
             available
         })
-            .await
-            .unwrap_or(false)
+        .await
+        .unwrap_or(false)
     }
 
     async fn restart_wire_plumber(&self) -> bool {
@@ -706,15 +755,21 @@ impl MediaController {
                 if let Some(device_string) = card.proplist.get_str("device.string")
                     && device_string.contains(&mac_clone)
                 {
-                    info!("Found audio device index for MAC {}: {}", mac_clone, card.index);
+                    info!(
+                        "Found audio device index for MAC {}: {}",
+                        mac_clone, card.index
+                    );
                     return Some(card.index);
                 }
             }
-            error!("No matching Bluetooth card found for MAC address: {}", mac_clone);
+            error!(
+                "No matching Bluetooth card found for MAC address: {}",
+                mac_clone
+            );
             None
         })
-            .await
-            .unwrap_or(None)
+        .await
+        .unwrap_or(None)
     }
 
     pub async fn deactivate_a2dp_profile(&self) {
@@ -742,23 +797,27 @@ impl MediaController {
             std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 set_card_profile_sync(device_index, "off")
             }))
-                .unwrap_or_else(|e| {
-                    warn!("Panic in set_card_profile_sync: {:?}", e);
-                    false
-                })
+            .unwrap_or_else(|e| {
+                warn!("Panic in set_card_profile_sync: {:?}", e);
+                false
+            })
         })
-            .await
-            .unwrap_or(false);
+        .await
+        .unwrap_or(false);
 
         if success {
             info!("Successfully deactivated A2DP profile");
+            self.state.lock().await.a2dp_active = false;
         } else {
             warn!("Failed to deactivate A2DP profile");
         }
     }
 
     pub async fn handle_conversational_awareness(&self, status: u8) {
-        debug!("Entering handle_conversational_awareness with status: {}", status);
+        debug!(
+            "Entering handle_conversational_awareness with status: {}",
+            status
+        );
 
         let mac = self.state.lock().await.connected_device_mac.clone();
         if mac.is_empty() {
@@ -781,8 +840,8 @@ impl MediaController {
             let sink = sink.clone();
             move || get_sink_volume_percent_by_name_sync(&sink)
         })
-            .await
-            .unwrap_or(None);
+        .await
+        .unwrap_or(None);
 
         match status {
             1 => {
@@ -821,8 +880,8 @@ impl MediaController {
                         tokio::task::spawn_blocking(move || {
                             transition_sink_volume(&sink_clone, 15)
                         })
-                            .await
-                            .unwrap_or(false);
+                        .await
+                        .unwrap_or(false);
                         info!(
                             "Conversation reduce: lowered volume to 15% (original {})",
                             orig
@@ -846,9 +905,11 @@ impl MediaController {
                 if let Some(orig) = conv_original {
                     let target = orig.min(25);
                     let sink_clone = sink.clone();
-                    tokio::task::spawn_blocking(move || transition_sink_volume(&sink_clone, target))
-                        .await
-                        .unwrap_or(false);
+                    tokio::task::spawn_blocking(move || {
+                        transition_sink_volume(&sink_clone, target)
+                    })
+                    .await
+                    .unwrap_or(false);
                     info!(
                         "Conversation partial increase (3): set volume to {} (original {})",
                         target, orig
@@ -856,9 +917,11 @@ impl MediaController {
                 } else if let Some(orig_from_current) = current_volume_opt {
                     let target = orig_from_current.min(25);
                     let sink_clone = sink.clone();
-                    tokio::task::spawn_blocking(move || transition_sink_volume(&sink_clone, target))
-                        .await
-                        .unwrap_or(false);
+                    tokio::task::spawn_blocking(move || {
+                        transition_sink_volume(&sink_clone, target)
+                    })
+                    .await
+                    .unwrap_or(false);
                     info!(
                         "Conversation partial increase (3) with fallback current: set volume to {} (measured {})",
                         target, orig_from_current
@@ -907,11 +970,7 @@ impl MediaController {
                 let proxy =
                     conn.with_proxy(service, "/org/mpris/MediaPlayer2", Duration::from_secs(5));
                 if proxy
-                    .method_call::<(), _, &str, &str>(
-                        "org.mpris.MediaPlayer2.Player",
-                        command,
-                        (),
-                    )
+                    .method_call::<(), _, &str, &str>("org.mpris.MediaPlayer2.Player", command, ())
                     .is_ok()
                 {
                     info!("Sent {} to: {}", command, service);
@@ -920,8 +979,8 @@ impl MediaController {
                 }
             }
         })
-            .await
-            .unwrap_or_default();
+        .await
+        .unwrap_or_default();
     }
 
     async fn restore_volume_if_needed(&self, sink: &str) {
@@ -960,11 +1019,15 @@ impl MediaController {
 
         names
             .into_iter()
-            .filter(|s| {
-                s.starts_with("org.mpris.MediaPlayer2.") && !Self::is_kdeconnect_service(s)
-            })
+            .filter(|s| s.starts_with("org.mpris.MediaPlayer2.") && !Self::is_kdeconnect_service(s))
             .collect()
     }
+}
+
+async fn disconnect_device(mac: &str) -> bluer::Result<()> {
+    let session = bluer::Session::new().await?;
+    let adapter = session.default_adapter().await?;
+    adapter.device(mac.parse()?)?.disconnect().await
 }
 
 // --- PulseAudio helpers ---
@@ -972,7 +1035,9 @@ impl MediaController {
 fn pulse_connect() -> Option<(Mainloop, Context)> {
     let mut mainloop = Mainloop::new()?;
     let mut context = Context::new(&mainloop, "LibrePods")?;
-    context.connect(None, ContextFlagSet::NOAUTOSPAWN, None).ok()?;
+    context
+        .connect(None, ContextFlagSet::NOAUTOSPAWN, None)
+        .ok()?;
     loop {
         mainloop.iterate(false);
         match context.get_state() {
@@ -1108,7 +1173,11 @@ pub fn transition_sink_volume(sink_name: &str, target_volume: u32) -> bool {
     }
 }
 
-fn should_grab_on_insertion(new_has_at_least_one_in: bool, old_all_out: bool, other_streaming: bool) -> bool {
+fn should_grab_on_insertion(
+    new_has_at_least_one_in: bool,
+    old_all_out: bool,
+    other_streaming: bool,
+) -> bool {
     new_has_at_least_one_in && old_all_out && !other_streaming
 }
 
@@ -1141,6 +1210,45 @@ fn should_take_on_playback(ear_status: &[EarDetectionStatus]) -> bool {
 /// put in (it fires even from a first `[] -> InEar` reading).
 fn should_activate_on_connect(ear_status: &[EarDetectionStatus]) -> bool {
     ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+}
+
+/// Whether to tear the A2DP sink back down, given the latest ear reading.
+///
+/// The mirror of `should_activate_on_connect`: a *definitive* off-head reading
+/// releases, and unknown/empty does not. Empty means no ear packet has arrived
+/// yet this AACP session, which is the normal state for the first moments after
+/// a reconnect — releasing there would drop the sink out from under buds the
+/// user is wearing.
+fn should_release_a2dp(ear_status: &[EarDetectionStatus]) -> bool {
+    !ear_status.is_empty() && !ear_status.iter().any(|s| *s == EarDetectionStatus::InEar)
+}
+
+#[cfg(test)]
+mod release_tests {
+    use super::{EarDetectionStatus::*, should_release_a2dp};
+
+    #[test]
+    fn releases_when_both_out() {
+        assert!(should_release_a2dp(&[OutOfEar, OutOfEar]));
+    }
+
+    #[test]
+    fn releases_when_in_case_or_sensors_asleep() {
+        assert!(should_release_a2dp(&[InCase, InCase]));
+        assert!(should_release_a2dp(&[OutOfEar, Disconnected]));
+    }
+
+    #[test]
+    fn holds_while_either_bud_is_worn() {
+        assert!(!should_release_a2dp(&[InEar, OutOfEar]));
+        assert!(!should_release_a2dp(&[InEar, InEar]));
+    }
+
+    /// The regression this whole change hinges on: unknown is not off-head.
+    #[test]
+    fn holds_on_unknown_status() {
+        assert!(!should_release_a2dp(&[]));
+    }
 }
 
 #[cfg(test)]
@@ -1246,7 +1354,9 @@ async fn get_sink_name_by_mac(mac: &str) -> Option<String> {
 
         for sink in sink_list.borrow().iter() {
             if let Some(device_string) = sink.proplist.get_str("device.string")
-                && device_string.to_uppercase().contains(&mac_clone.to_uppercase())
+                && device_string
+                    .to_uppercase()
+                    .contains(&mac_clone.to_uppercase())
                 && let Some(name) = &sink.name
             {
                 info!("Found sink name for MAC {}: {}", mac_clone, name);
@@ -1270,6 +1380,6 @@ async fn get_sink_name_by_mac(mac: &str) -> Option<String> {
         error!("No matching sink found for MAC address: {}", mac_clone);
         None
     })
-        .await
-        .unwrap_or(None)
+    .await
+    .unwrap_or(None)
 }

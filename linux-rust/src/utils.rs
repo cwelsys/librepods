@@ -24,18 +24,17 @@ pub fn get_preferences_path() -> PathBuf {
 pub fn get_app_settings_path() -> PathBuf {
     let home = std::env::var("HOME").unwrap_or_default();
 
-    let config_dir = std::env::var("XDG_CONFIG_HOME")
-        .unwrap_or_else(|_| format!("{}/.config", home));
+    let config_dir =
+        std::env::var("XDG_CONFIG_HOME").unwrap_or_else(|_| format!("{}/.config", home));
 
-    let data_dir = std::env::var("XDG_DATA_HOME")
-        .unwrap_or_else(|_| format!("{}/.local/share", home));
+    let data_dir =
+        std::env::var("XDG_DATA_HOME").unwrap_or_else(|_| format!("{}/.local/share", home));
 
     let new_path = PathBuf::from(&config_dir)
         .join("librepods")
         .join("app_settings.json");
 
-    let old_path = PathBuf::from(&data_dir)
-        .join("app_settings.json");
+    let old_path = PathBuf::from(&data_dir).join("app_settings.json");
 
     // create new path if needed
     if !new_path.exists() {

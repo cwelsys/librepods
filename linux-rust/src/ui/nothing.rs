@@ -25,16 +25,22 @@ pub fn nothing_view<'a>(
     if let Some(device) = devices_list.get(mac.as_str())
         && let Some(DeviceInformation::Nothing(ref nothing_info)) = device.information
     {
-        let chevron = if show_device_info { "\u{25be}" } else { "\u{25b8}" };
+        let chevron = if show_device_info {
+            "\u{25be}"
+        } else {
+            "\u{25b8}"
+        };
         let header = button(
             row![
-                text(format!("{} Device Information", chevron)).size(18).style(|theme: &Theme| {
-                    let mut style = text::Style::default();
-                    style.color = Some(theme.palette().primary);
-                    style
-                }),
+                text(format!("{} Device Information", chevron))
+                    .size(18)
+                    .style(|theme: &Theme| {
+                        let mut style = text::Style::default();
+                        style.color = Some(theme.palette().primary);
+                        style
+                    }),
             ]
-            .align_y(iced::Alignment::Center)
+            .align_y(iced::Alignment::Center),
         )
         .style(|_theme: &Theme, _status| {
             let mut style = button::Style::default();
@@ -46,8 +52,17 @@ pub fn nothing_view<'a>(
         .on_press(Message::ToggleDeviceInfo);
 
         if show_device_info {
-            let eye_icon = if show_serials { "\u{1f441}" } else { "\u{25c9}" };
-            let serial_text = if show_serials { nothing_info.serial_number.clone() } else { "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}".to_string() };
+            let eye_icon = if show_serials {
+                "\u{1f441}"
+            } else {
+                "\u{25c9}"
+            };
+            let serial_text = if show_serials {
+                nothing_info.serial_number.clone()
+            } else {
+                "\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}\u{2022}"
+                    .to_string()
+            };
 
             information_col = information_col
                 .push(header)
@@ -60,10 +75,9 @@ pub fn nothing_view<'a>(
                     }),
                     Space::new().width(Length::Fill),
                     button(
-                        row![
-                            text(serial_text).size(16),
-                            text(eye_icon).size(14),
-                        ].spacing(6).align_y(iced::Alignment::Center)
+                        row![text(serial_text).size(16), text(eye_icon).size(14),]
+                            .spacing(6)
+                            .align_y(iced::Alignment::Center)
                     )
                     .style(|theme: &Theme, _status| {
                         let mut style = button::Style::default();
@@ -175,7 +189,7 @@ pub fn nothing_view<'a>(
                     selected_background: Background::Color(
                         theme.palette().primary.scale_alpha(0.3),
                     ),
-                    shadow: Default::default()
+                    shadow: Default::default(),
                 })
             }
         ]
@@ -214,8 +228,7 @@ pub fn nothing_view<'a>(
     .padding(20)
     .center_x(Length::Fill);
 
-    container(scrollable(content).height(Length::Fill))
-        .height(Length::Fill)
+    container(scrollable(content).height(Length::Fill)).height(Length::Fill)
 }
 
 fn run_async_in_thread<F>(fut: F)

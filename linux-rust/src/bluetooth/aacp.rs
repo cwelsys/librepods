@@ -863,10 +863,7 @@ impl AACPManager {
                         // an AirPods record to attach them to so they aren't dropped;
                         // the Information handler later fills the remaining fields while
                         // preserving these keys.
-                        if !matches!(
-                            device_data.information,
-                            Some(DeviceInformation::AirPods(_))
-                        ) {
+                        if !matches!(device_data.information, Some(DeviceInformation::AirPods(_))) {
                             device_data.information =
                                 Some(DeviceInformation::AirPods(AirPodsInformation::default()));
                         }
@@ -1086,9 +1083,18 @@ impl AACPManager {
         if identifier != ControlCommandIdentifiers::OwnsConnection {
             let owns = self.state.lock().await.owns;
             if !owns {
-                debug!("Control command {:?} but not owner; claiming ownership first", identifier);
+                debug!(
+                    "Control command {:?} but not owner; claiming ownership first",
+                    identifier
+                );
                 let opcode = [opcodes::CONTROL_COMMAND, 0x00];
-                let data = [ControlCommandIdentifiers::OwnsConnection as u8, 0x01, 0x00, 0x00, 0x00];
+                let data = [
+                    ControlCommandIdentifiers::OwnsConnection as u8,
+                    0x01,
+                    0x00,
+                    0x00,
+                    0x00,
+                ];
                 let claim = [opcode.as_slice(), data.as_slice()].concat();
                 self.send_data_packet(&claim).await?;
             }
@@ -1369,20 +1375,20 @@ async fn send_thread(mut rx: mpsc::Receiver<Vec<u8>>, sp: Arc<SeqPacket>) {
     while let Some(data) = rx.recv().await {
         let mut attempts = 0;
         loop {
-          match sp.send(&data).await {
-            Ok(_) => {
-              debug!("Sent {} bytes: {}", data.len(), hex::encode(&data));
-              break;
+            match sp.send(&data).await {
+                Ok(_) => {
+                    debug!("Sent {} bytes: {}", data.len(), hex::encode(&data));
+                    break;
+                }
+                Err(e) if e.raw_os_error() == Some(107) && attempts < 10 => {
+                    attempts += 1;
+                    sleep(Duration::from_millis(100)).await;
+                }
+                Err(e) => {
+                    error!("Failed to send data: {}", e);
+                    return;
+                }
             }
-            Err(e) if e.raw_os_error() == Some(107) && attempts < 10 => {
-              attempts += 1;
-              sleep(Duration::from_millis(100)).await;
-            }
-            Err(e) => {
-              error!("Failed to send data: {}", e);
-              return;
-            }
-          }
         }
     }
     info!("Send thread finished.");
@@ -1394,7 +1400,8 @@ mod smart_routing_tests {
 
     #[test]
     fn parses_streaming_yes_with_mac() {
-        let s = "JplayingAppGUnknownRhostStreamingStateCYESIbtAddressQ48:35:2B:97:EB:20FbtNameFiPhone";
+        let s =
+            "JplayingAppGUnknownRhostStreamingStateCYESIbtAddressQ48:35:2B:97:EB:20FbtNameFiPhone";
         assert_eq!(
             parse_smart_routing_streaming(s),
             Some(("48:35:2B:97:EB:20".to_string(), true))

@@ -160,7 +160,8 @@ impl ksni::Tray for MyTray {
                         // Only send if the mode actually changed (avoid feedback loop
                         // from ksni firing select during menu rebuilds)
                         if this.listening_mode != Some(value) {
-                            let _ = tx.send((ControlCommandIdentifiers::ListeningMode, vec![value]));
+                            let _ =
+                                tx.send((ControlCommandIdentifiers::ListeningMode, vec![value]));
                             this.listening_mode = Some(value);
                         }
                     }
@@ -172,7 +173,6 @@ impl ksni::Tray for MyTray {
                         ..Default::default()
                     })
                     .collect(),
-                ..Default::default()
             }
             .into(),
             MenuItem::Separator,

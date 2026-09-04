@@ -3,26 +3,28 @@ use crate::bluetooth::aacp::{
 };
 use crate::bluetooth::managers::DeviceManagers;
 use crate::devices::enums::{
-    AirPodsModel, AirPodsNoiseControlMode, AirPodsState, DeviceData, DeviceInformation, DeviceState,
-    DeviceType, NothingAncMode, NothingState,
+    AirPodsModel, AirPodsNoiseControlMode, AirPodsState, DeviceData, DeviceInformation,
+    DeviceState, DeviceType, NothingAncMode, NothingState,
 };
 use crate::ui::airpods::airpods_view;
 use crate::ui::messages::BluetoothUIMessage;
 use crate::ui::nothing::nothing_view;
 use crate::utils::{MyTheme, get_app_settings_path, get_devices_path};
-use bluer::{Address};
+use bluer::Address;
 use iced::border::Radius;
 use iced::overlay::menu;
 use iced::widget::button::Style;
 use iced::widget::rule::FillMode;
 use iced::widget::{
     Space, button, column, combo_box, container, pane_grid, row, rule, scrollable, text,
-    text_input, toggler
+    text_input, toggler,
 };
-use iced::{Background, Border, Center, Color, Element, Font, Length, Padding, Size, Subscription, Task, Theme, daemon, window, Settings, Program};
+use iced::{
+    Background, Border, Center, Color, Element, Font, Length, Padding, Settings, Size,
+    Subscription, Task, Theme, daemon, window,
+};
 use log::{debug, error};
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{Mutex, RwLock};
@@ -53,7 +55,11 @@ pub fn start_ui(
     .title(App::title)
     .settings(Settings {
         id: Some("librepods".to_string()),
-        fonts: vec![include_bytes!("../../assets/font/sf_pro.otf").as_slice().into()],
+        fonts: vec![
+            include_bytes!("../../assets/font/sf_pro.otf")
+                .as_slice()
+                .into(),
+        ],
         default_font: Font::with_name("SF Pro Text"),
         ..Settings::default()
     })
@@ -144,7 +150,6 @@ impl App {
         let split = panes.split(pane_grid::Axis::Vertical, first_pane, Pane::Content);
         panes.resize(split.unwrap().1, 0.2);
 
-
         let wait_task = Task::perform(wait_for_message(Arc::clone(&ui_rx)), |msg| msg);
 
         let (window, open_task) = if start_minimized {
@@ -155,8 +160,7 @@ impl App {
             settings.icon = window::icon::from_file("../../assets/icon.png").ok();
             #[cfg(target_os = "linux")]
             {
-                settings.platform_specific.application_id =
-                    "me.kavishdevar.librepods".to_string();
+                settings.platform_specific.application_id = "me.kavishdevar.librepods".to_string();
             }
             let (id, open) = window::open(settings);
             (Some(id), open.map(Message::WindowOpened))
@@ -378,7 +382,9 @@ impl App {
                                         .and_then(|d| d.information.as_ref())
                                         .and_then(|info| {
                                             if let DeviceInformation::AirPods(ap) = info {
-                                                Some(AirPodsModel::from_model_number(&ap.model_number))
+                                                Some(AirPodsModel::from_model_number(
+                                                    &ap.model_number,
+                                                ))
                                             } else {
                                                 None
                                             }
@@ -444,7 +450,8 @@ impl App {
 
                         self.device_states.remove(&mac);
 
-                        if matches!(&self.selected_tab, Tab::Device(selected_mac) if selected_mac == &mac) {
+                        if matches!(&self.selected_tab, Tab::Device(selected_mac) if selected_mac == &mac)
+                        {
                             self.selected_tab = Tab::Device("none".to_string());
                         }
 
@@ -728,10 +735,13 @@ impl App {
                         std::thread::spawn(move || {
                             let rt = tokio::runtime::Runtime::new().unwrap();
                             rt.block_on(async move {
-                                if let Err(e) = aacp.send_control_command(
-                                    ControlCommandIdentifiers::ListeningMode,
-                                    &[mode_byte],
-                                ).await {
+                                if let Err(e) = aacp
+                                    .send_control_command(
+                                        ControlCommandIdentifiers::ListeningMode,
+                                        &[mode_byte],
+                                    )
+                                    .await
+                                {
                                     log::error!("Failed to send Noise Control Mode command: {}", e);
                                 }
                             });

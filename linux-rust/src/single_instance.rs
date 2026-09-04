@@ -10,8 +10,8 @@
 
 use crate::ui::messages::BluetoothUIMessage;
 use dbus::arg::{PropMap, RefArg, Variant};
-use dbus::blocking::stdintf::org_freedesktop_dbus::RequestNameReply;
 use dbus::blocking::Connection;
+use dbus::blocking::stdintf::org_freedesktop_dbus::RequestNameReply;
 use dbus_crossroads::{Crossroads, IfaceBuilder};
 use log::{error, info, warn};
 use std::time::Duration;

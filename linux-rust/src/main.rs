@@ -11,7 +11,7 @@ use crate::bluetooth::managers::DeviceManagers;
 use crate::devices::enums::DeviceData;
 use crate::ui::messages::BluetoothUIMessage;
 use crate::ui::tray::MyTray;
-use crate::utils::{get_app_settings_path, get_devices_path};
+use crate::utils::get_devices_path;
 use bluer::{Address, InternalErrorKind};
 use clap::Parser;
 use dbus::arg::{RefArg, Variant};
@@ -20,10 +20,9 @@ use dbus::blocking::stdintf::org_freedesktop_dbus::Properties;
 use dbus::message::MatchRule;
 use devices::airpods::AirPodsDevice;
 use ksni::TrayMethods;
-use log::{debug, info, warn};
+use log::{info, warn};
 use std::collections::HashMap;
 use std::env;
-use std::sync::atomic::{AtomicBool};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use tokio::sync::mpsc::unbounded_channel;
@@ -45,7 +44,7 @@ struct Args {
     )]
     le_debug: bool,
     #[arg(long, short = 'v', help = "Show application version and exit")]
-    version: bool
+    version: bool,
 }
 
 fn main() -> iced::Result {
@@ -236,7 +235,9 @@ async fn async_main(
                             .entry(addr_str.clone())
                             .or_insert(dev_managers)
                             .set_att(dev.att_manager);
-                        if let Err(e) = ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str)) {
+                        if let Err(e) =
+                            ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str))
+                        {
                             warn!("Failed to send DeviceConnected UI message: {:?}", e);
                         }
                     }
@@ -292,7 +293,7 @@ async fn async_main(
         let Ok(addr) = addr_str.parse::<Address>() else {
             return true;
         };
-        if is_connected==0 {
+        if is_connected == 0 {
             if uuids.iter().any(|u| u.to_lowercase() == target_uuid) {
                 let _ = connected_tx.send(false);
                 // Mark the tray disconnected so the icon greys out. The last-known
@@ -312,7 +313,7 @@ async fn async_main(
             if let Err(e) = ui_tx.send(BluetoothUIMessage::DeviceDisconnected(addr_str.clone())) {
                 warn!("Failed to send DeviceConnected UI message: {:?}", e);
             }
-            return true
+            return true;
         }
         if managed_devices_mac.contains(&addr_str) {
             info!("Managed device connected: {}, initializing", addr_str);
@@ -329,7 +330,9 @@ async fn async_main(
                         .or_insert(dev_managers)
                         .set_att(dev.att_manager);
                     drop(managers);
-                    if let Err(e) = ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str.clone())) {
+                    if let Err(e) =
+                        ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str.clone()))
+                    {
                         warn!("Failed to send DeviceConnected UI message: {:?}", e);
                     }
                 });
@@ -358,7 +361,8 @@ async fn async_main(
                 .or_insert(dev_managers)
                 .set_aacp(airpods_device.aacp_manager);
             drop(managers);
-            if let Err(e) = ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str.clone())) {
+            if let Err(e) = ui_tx_clone.send(BluetoothUIMessage::DeviceConnected(addr_str.clone()))
+            {
                 warn!("Failed to send DeviceConnected UI message: {:?}", e);
             }
         });
