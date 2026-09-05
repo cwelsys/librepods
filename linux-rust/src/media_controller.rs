@@ -387,11 +387,10 @@ impl MediaController {
                 // does a blocking PulseAudio enumeration and other tasks must
                 // not be stalled waiting on `state` for its duration.
                 let new_index = self.get_audio_device_index(&mac).await;
-                let mut state = self.state.lock().await;
-                state.device_index = new_index;
+                self.state.lock().await.device_index = new_index;
                 debug!(
                     "Updated device_index after WirePlumber restart: {:?}",
-                    state.device_index
+                    new_index
                 );
                 if !self.is_a2dp_profile_available().await {
                     error!("A2DP profile still not available after WirePlumber restart");
