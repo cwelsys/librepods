@@ -269,9 +269,15 @@ impl AirPodsDevice {
                             "Calling handle_ear_detection with old_status: {:?}, new_status: {:?}",
                             old_status, new_status
                         );
-                        controller
-                            .handle_ear_detection(old_status, new_status)
-                            .await;
+                        if tokio::time::timeout(
+                            Duration::from_secs(30),
+                            controller.handle_ear_detection(old_status, new_status),
+                        )
+                        .await
+                        .is_err()
+                        {
+                            error!("handle_ear_detection hung for 30s; abandoning it");
+                        }
                     }
                     AACPEvent::BatteryInfo(battery_info) => {
                         debug!("Received BatteryInfo event: {:?}", battery_info);

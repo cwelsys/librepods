@@ -223,13 +223,13 @@ async fn async_main(
                 let ui_tx_clone = ui_tx.clone();
                 let device_managers = device_managers.clone();
                 tokio::spawn(async move {
-                    let mut managers = device_managers.write().await;
                     if type_ == devices::enums::DeviceType::Nothing {
                         let dev = devices::nothing::NothingDevice::new(
                             device.address(),
                             ui_tx_clone.clone(),
                         )
                         .await;
+                        let mut managers = device_managers.write().await;
                         let dev_managers = DeviceManagers::with_att(dev.att_manager.clone());
                         managers
                             .entry(addr_str.clone())
@@ -241,7 +241,6 @@ async fn async_main(
                             warn!("Failed to send DeviceConnected UI message: {:?}", e);
                         }
                     }
-                    drop(managers)
                 });
             }
         }
@@ -322,8 +321,8 @@ async fn async_main(
                 let ui_tx_clone = ui_tx.clone();
                 let device_managers = device_managers.clone();
                 tokio::spawn(async move {
-                    let mut managers = device_managers.write().await;
                     let dev = devices::nothing::NothingDevice::new(addr, ui_tx_clone.clone()).await;
+                    let mut managers = device_managers.write().await;
                     let dev_managers = DeviceManagers::with_att(dev.att_manager.clone());
                     managers
                         .entry(addr_str.clone())
