@@ -88,10 +88,10 @@ Available in the `android/rewrite` branch. [builds](https://github.com/librepods
 Not available yet (doesn't seem like something that would be useful on a computer anyway. If you have any suggestions, create a discussion.)
 
 ## High quality two-way audio
-On iOS/iPadOS, you can continue using A2DP while AirPods send the audio stream from its microphone over AACP.
+On iOS/iPadOS, you can continue using A2DP while AirPods send the hi-res (AAC-ELD mono 64kHz?) audio stream from its microphone over AACP.
 
 ### Android
-Record audio within the app using the AirPods' microphone without switching to Headset/Handsfree profile is possible. But, making this available to other apps/telephony might need root, if possible at all.
+Record audio within the app using the AirPods' microphone without switching to Headset/Handsfree profile degrading the playback quality. But, making this available to other apps/telephony might need root, if possible at all.
 
 Recorder is work in progress; available in the `android/rewrite` branch. [builds](https://github.com/librepods-org/librepods/actions/workflows/ci-android.yml?query=branch%3Aandroid%2Frewrite)
 
