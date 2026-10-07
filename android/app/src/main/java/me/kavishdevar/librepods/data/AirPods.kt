@@ -141,6 +141,55 @@ class AirPods4ANC: AirPodsBase(
     )
 )
 
+class AirPods5: AirPodsBase(
+    modelNumber = listOf("A3531", "A3532", "A3533"),
+    name = "AirPods 5",
+    // budCaseRes = R.drawable.airpods_5
+    budCaseRes = R.drawable.airpods_pro_2,
+    // budsRes = R.drawable.airpods_5_buds
+    budsRes = R.drawable.airpods_pro_2_buds,
+    // leftBudsRes = R.drawable.airpods_5_left
+    leftBudsRes = R.drawable.airpods_pro_2_left,
+    // rightBudsRes = R.drawable.airpods_5_right
+    rightBudsRes = R.drawable.airpods_pro_2_right,
+    // caseRes = R.drawable.airpods_5_case
+    caseRes = R.drawable.airpods_pro_2_case,
+    capabilities = setOf(
+        Capability.LISTENING_MODE,
+        Capability.CONVERSATION_AWARENESS,
+        Capability.HEAD_GESTURES,
+        Capability.ADAPTIVE_AUDIO,
+        Capability.SLEEP_DETECTION,
+        Capability.ADAPTIVE_VOLUME,
+        Capability.STEM_CONFIG
+    )
+)
+
+class AirPods5WCC: AirPodsBase(
+    modelNumber = listOf("A3439", "A3440", "A3441"),
+    name = "AirPods 5 with Wireless Charging Case",
+    // budCaseRes = R.drawable.airpods_4
+    budCaseRes = R.drawable.airpods_pro_2,
+    // budsRes = R.drawable.airpods_4_buds
+    budsRes = R.drawable.airpods_pro_2_buds,
+    // leftBudsRes = R.drawable.airpods_4_left
+    leftBudsRes = R.drawable.airpods_pro_2_left,
+    // rightBudsRes = R.drawable.airpods_4_right
+    rightBudsRes = R.drawable.airpods_pro_2_right,
+    // caseRes = R.drawable.airpods_4_case
+    caseRes = R.drawable.airpods_pro_2_case,
+    capabilities = setOf(
+        Capability.LISTENING_MODE,
+        Capability.CONVERSATION_AWARENESS,
+        Capability.HEAD_GESTURES,
+        Capability.ADAPTIVE_AUDIO,
+        Capability.SLEEP_DETECTION,
+        Capability.ADAPTIVE_VOLUME,
+        Capability.STEM_CONFIG,
+        Capability.SWIPE_FOR_VOLUME
+    )
+)
+
 class AirPodsPro1: AirPodsBase(
     modelNumber = listOf("A2084", "A2083"),
     name = "AirPods Pro 1",
