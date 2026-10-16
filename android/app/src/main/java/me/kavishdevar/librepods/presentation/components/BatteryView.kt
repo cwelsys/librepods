@@ -27,15 +27,16 @@ import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -48,6 +49,7 @@ import me.kavishdevar.librepods.R
 import me.kavishdevar.librepods.data.Battery
 import me.kavishdevar.librepods.data.BatteryComponent
 import me.kavishdevar.librepods.data.BatteryStatus
+import me.kavishdevar.librepods.presentation.theme.LibrePodsTheme
 import kotlin.io.encoding.ExperimentalEncodingApi
 
 @Composable
@@ -64,85 +66,108 @@ fun BatteryView(
     val rightLevel = right?.level ?: 0
     val caseLevel = case?.level ?: 0
 
-    val singleDisplayed = remember { mutableStateOf(false) }
+    val isSingleDisplay = left?.status == right?.status && (leftLevel - rightLevel) in -3..3
 
     Box(
         modifier = Modifier.fillMaxWidth(),
         contentAlignment = Alignment.Center
     ) {
         Row(
-            modifier = Modifier.widthIn(max = 500.dp),
-            horizontalArrangement = Arrangement.Center
+            modifier = Modifier
+                .widthIn(max = 350.dp)
+                .height(IntrinsicSize.Min),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Image(
-                    bitmap = ImageBitmap.imageResource(budsRes),
-                    contentDescription = stringResource(R.string.buds),
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                )
-
-                if (
-                    left?.status == right?.status &&
-                    (leftLevel - rightLevel) in -3..3
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
                 ) {
-                    BatteryIndicator(
-                        leftLevel.coerceAtMost(rightLevel),
-                        left?.status ?: BatteryStatus.NOT_CHARGING
+                    Image(
+                        bitmap = ImageBitmap.imageResource(budsRes),
+                        contentDescription = stringResource(R.string.buds),
+                        modifier = Modifier.fillMaxWidth()
                     )
-                    singleDisplayed.value = true
-                } else {
-                    singleDisplayed.value = false
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        if (leftLevel > 0 || left?.status != BatteryStatus.DISCONNECTED) {
-                            BatteryIndicator(
-                                leftLevel,
-                                left?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE5"
-                            )
-                        }
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSingleDisplay) {
+                        BatteryIndicator(
+                            leftLevel.coerceAtMost(rightLevel),
+                            left?.status ?: BatteryStatus.NOT_CHARGING
+                        )
+                    } else {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            if (leftLevel > 0 || left?.status != BatteryStatus.DISCONNECTED) {
+                                BatteryIndicator(
+                                    leftLevel,
+                                    left?.status ?: BatteryStatus.NOT_CHARGING,
+                                    "\uDBC6\uDCE5"
+                                )
+                            }
 
-                        if (leftLevel > 0 && rightLevel > 0) {
-                            Spacer(modifier = Modifier.width(16.dp))
-                        }
+                            if (leftLevel > 0 && rightLevel > 0) {
+                                Spacer(modifier = Modifier.width(16.dp))
+                            }
 
-                        if (rightLevel > 0 || right?.status != BatteryStatus.DISCONNECTED) {
-                            BatteryIndicator(
-                                rightLevel,
-                                right?.status ?: BatteryStatus.NOT_CHARGING,
-                                "\uDBC6\uDCE8"
-                            )
+                            if (rightLevel > 0 || right?.status != BatteryStatus.DISCONNECTED) {
+                                BatteryIndicator(
+                                    rightLevel,
+                                    right?.status ?: BatteryStatus.NOT_CHARGING,
+                                    "\uDBC6\uDCE8"
+                                )
+                            }
                         }
                     }
                 }
             }
 
             Column(
-                modifier = Modifier.weight(1f),
-                horizontalAlignment = Alignment.CenterHorizontally
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                Image(
-                    bitmap = ImageBitmap.imageResource(caseRes),
-                    contentDescription = stringResource(R.string.case_alt),
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp)
-                )
-
-                if (caseLevel > 0 || case?.status != BatteryStatus.DISCONNECTED) {
-                    BatteryIndicator(
-                        caseLevel,
-                        case?.status ?: BatteryStatus.NOT_CHARGING,
-                        prefix = if (!singleDisplayed.value) "\uDBC3\uDE6C" else ""
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Image(
+                        bitmap = ImageBitmap.imageResource(caseRes),
+                        contentDescription = stringResource(R.string.case_alt),
+                        modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (caseLevel > 0 || case?.status != BatteryStatus.DISCONNECTED) {
+                        BatteryIndicator(
+                            caseLevel,
+                            case?.status ?: BatteryStatus.NOT_CHARGING,
+                            prefix = if (!isSingleDisplay) "\uDBC3\uDE6C" else ""
+                        )
+                    }
                 }
             }
         }
@@ -159,16 +184,17 @@ fun BatteryViewPreview() {
     )
 
     val bg = if (isSystemInDarkTheme()) Color.Black else Color(0xFFF2F2F7)
-
-    Box(
-        modifier = Modifier
-            .background(bg)
-            .padding(16.dp)
-    ) {
-        BatteryView(
-            batteryList = fakeBattery,
-            budsRes = R.drawable.airpods_pro_2_buds,
-            caseRes = R.drawable.airpods_pro_2_case
-        )
+    LibrePodsTheme(m3eEnabled = false) {
+        Box(
+            modifier = Modifier
+                .background(bg)
+                .padding(16.dp)
+        ) {
+            BatteryView(
+                batteryList = fakeBattery,
+                budsRes = R.drawable.airpods_5_wireless_buds,
+                caseRes = R.drawable.airpods_5_wireless_case
+            )
+        }
     }
 }

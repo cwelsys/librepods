@@ -2335,10 +2335,6 @@ class AirPodsService : Service(), SharedPreferences.OnSharedPreferenceChangeList
             val instance = airpodsInstance
             if (instance != null) {
                 val metadataSet = SystemApisUtils.setMetadata(
-                    device,
-                    device.METADATA_MAIN_ICON,
-                    resToUri(instance.model.budCaseRes).toString().toByteArray()
-                ) && SystemApisUtils.setMetadata(
                     device, device.METADATA_MODEL_NAME, instance.model.name.toByteArray()
                 ) && SystemApisUtils.setMetadata(
                     device,
