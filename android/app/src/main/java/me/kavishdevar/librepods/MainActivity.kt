@@ -222,8 +222,8 @@ fun Main() {
     }
 
     NavigationRoot(
-        showReleaseNotes = !releaseNotesShown,
-        updatesShown = { sharedPreferences.edit { putBoolean(releaseNotesShownPrefKey, true) } },
+//        showReleaseNotes = !releaseNotesShown,
+//        updatesShown = { sharedPreferences.edit { putBoolean(releaseNotesShownPrefKey, true) } },
         showOnboarding = !onboardingComplete,
         onboardingComplete = {
             sharedPreferences.edit { putBoolean("onboarding_complete", true) }

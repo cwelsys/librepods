@@ -1,5 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name" translatable="false">LibrePods</string>
     <string name="app_description">Libere seus AirPods do ecossistema da Apple.</string>
     <string name="app_widget_description">Veja o status da bateria dos seus AirPods diretamente na tela inicial!</string>
     <string name="accessibility">Acessibilidade</string>
@@ -11,20 +10,19 @@
     <string name="adaptive_audio_description">O áudio adaptativo responde dinamicamente ao seu ambiente e cancela ou permite ruídos externos. Você pode personalizar o Áudio Adaptativo para permitir mais ou menos ruído.</string>
     <string name="buds">Fones</string>
     <string name="case_alt">Estojo</string>
-    <string name="test">Teste</string>
     <string name="name">Nome</string>
-    <string name="noise_control">Modo de Escuta</string>
+    <string name="listening_mode">Modo de Escuta</string>
     <string name="off">Desligado</string>
     <string name="transparency">Transparência</string>
     <string name="adaptive">Adaptativo</string>
     <string name="noise_cancellation">Cancelamento de Ruído</string>
     <string name="press_and_hold_airpods">Pressionar e Segurar AirPods</string>
-    <string name="press_and_hold_noise_control_description">Pressione e segure a haste para alternar entre os modos de escuta selecionados.</string>
+    <string name="press_and_hold_listening_mode_description">Pressione e segure a haste para alternar entre os modos de escuta selecionados.</string>
     <string name="head_gestures">Gestos com a Cabeça</string>
     <string name="left">Esquerdo</string>
     <string name="right">Direito</string>
-    <string name="conversational_awareness">Consciência Conversacional</string>
-    <string name="conversational_awareness_description">Reduz o volume da mídia e diminui o ruído de fundo quando você começa a falar com outras pessoas.</string>
+    <string name="conversation_awareness">Consciência Conversacional</string>
+    <string name="conversation_awareness_description">Reduz o volume da mídia e diminui o ruído de fundo quando você começa a falar com outras pessoas.</string>
     <string name="personalized_volume">Volume Personalizado</string>
     <string name="personalized_volume_description">Ajusta o volume da mídia em resposta ao seu ambiente.</string>
     <string name="noise_cancellation_single_airpod">Cancelamento de Ruído com um AirPod</string>
@@ -35,13 +33,13 @@
     <string name="airpods_not_connected_description">Por favor, conecte seus AirPods para acessar as configurações.</string>
     <string name="back">Voltar</string>
     <string name="customizations">Personalizações</string>
-    <string name="relative_conversational_awareness_volume">Volume relativo</string>
-    <string name="relative_conversational_awareness_volume_description">Reduz para uma porcentagem do volume atual em vez do volume máximo.</string>
-    <string name="conversational_awareness_pause_music">Pausar Música</string>
-    <string name="conversational_awareness_pause_music_description">Quando você começar a falar, a música será pausada.</string>
+    <string name="relative_conversation_awareness_volume">Volume relativo</string>
+    <string name="relative_conversation_awareness_volume_description">Reduz para uma porcentagem do volume atual em vez do volume máximo.</string>
+    <string name="conversation_awareness_pause_music">Pausar Música</string>
+    <string name="conversation_awareness_pause_music_description">Quando você começar a falar, a música será pausada.</string>
     <string name="appwidget_text">EXEMPLO</string>
     <string name="add_widget">Adicionar widget</string>
-    <string name="noise_control_widget_description">Controle o Modo de Controle de Ruído diretamente da sua Tela Inicial.</string>
+    <string name="listening_mode_widget_description">Controle o Modo de Controle de Ruído diretamente da sua Tela Inicial.</string>
     <string name="island_connected_text">Conectado</string>
     <string name="island_connected_remote_text">Conectado ao Linux</string>
     <string name="island_taking_over_text">Conectado</string>
@@ -140,7 +138,7 @@
     <string name="widget">Widget</string>
     <string name="show_phone_battery_in_widget">Mostrar bateria do telefone no widget</string>
     <string name="show_phone_battery_in_widget_description">Exiba o nível de bateria do seu telefone no widget junto com a bateria dos AirPods</string>
-    <string name="conversational_awareness_volume">Volume de Consciência Conversacional</string>
+    <string name="conversation_awareness_volume">Volume de Consciência Conversacional</string>
     <string name="quick_settings_tile">Bloco de Configurações Rápidas</string>
     <string name="open_dialog_for_controlling">Abrir diálogo para controlar</string>
     <string name="open_dialog_for_controlling_description">Se desabilitado, clicar no bloco de configurações rápidas alternará entre modos. Se habilitado, mostrará um diálogo para controlar o modo de controle de ruído e a consciência conversacional</string>
@@ -215,4 +213,5 @@
     <string name="show_bottom_sheet_popup_description">Exibe o pop-up estilo iOS na parte inferior quando os AirPods se conectam.</string>
     <string name="show_island_popup">Pop-up Dynamic Island</string>
     <string name="show_island_popup_description">Exibe o pop-up estilo Dynamic Island no topo da tela em eventos de conexão e transferência.</string>
+    <string name="play_foss_premium_banner">O seu aplicativo foi atualizado para a versão do Google Play; os recursos avançados serão desativados em %1$d dias. Atualize a partir da sua fonte original para permanecer na versão FOSS, aguarde o fim deste período para comprar o upgrade diretamente ou toque aqui para solicitar um código promocional se você já apoia o projeto.</string>
 </resources>

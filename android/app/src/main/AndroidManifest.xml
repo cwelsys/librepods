@@ -64,7 +64,7 @@
 
             <meta-data
                 android:name="android.appwidget.provider"
-                android:resource="@xml/noise_control_widget_info" />
+                android:resource="@xml/listening_mode_widget_info" />
         </receiver>
 
         <receiver

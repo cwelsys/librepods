@@ -1,6 +1,7 @@
 import java.util.Properties
 
-val appVersionName = "1.0.2"
+val appVersionName = rootProject.extra["appVersionName"] as String
+val appVersionCode = rootProject.extra["appVersionCode"] as Int
 
 plugins {
     alias(libs.plugins.android.application)
@@ -49,7 +50,7 @@ android {
     defaultConfig {
         applicationId = "me.kavishdevar.librepods"
         targetSdk = 37
-        versionCode = 65
+        versionCode = appVersionCode
         versionName = appVersionName
     }
     buildTypes {
@@ -195,7 +196,7 @@ fun registerRootModuleZipTask(
 
     delete(layout.buildDirectory.dir("outputs/rootModuleZips"))
 
-    archiveFileName.set("LibrePods-FOSS-v$appVersionName-$buildType.zip")
+    archiveFileName.set("LibrePods-FOSS-v$appVersionName-$appVersionCode-$buildType.zip")
     destinationDirectory.set(layout.buildDirectory.dir("outputs/rootModuleZips"))
 }
 
@@ -212,6 +213,7 @@ val zipDebug = registerRootModuleZipTask(
 )
 
 val collect = tasks.register<Copy>("collectReleaseArtifacts") {
+    description = "Collects release artifacts into a single directory."
 
     dependsOn(
         zipRelease,
@@ -223,12 +225,12 @@ val collect = tasks.register<Copy>("collectReleaseArtifacts") {
 
     from(layout.buildDirectory.dir("outputs/apk/foss/release")) {
         include("*.apk")
-        rename(".*", "LibrePods-FOSS-v$appVersionName-release.apk")
+        rename(".*", "LibrePods-FOSS-v$appVersionName-$appVersionCode-release.apk")
     }
 
     from(layout.buildDirectory.dir("outputs/apk/foss/debug")) {
         include("*.apk")
-        rename(".*", "LibrePods-FOSS-v$appVersionName-debug.apk")
+        rename(".*", "LibrePods-FOSS-v$appVersionName-$appVersionCode-debug.apk")
     }
 
     from(layout.buildDirectory.dir("outputs/bundle/playRelease")) {
@@ -238,8 +240,4 @@ val collect = tasks.register<Copy>("collectReleaseArtifacts") {
     from(layout.buildDirectory.dir("outputs/rootModuleZips")) {
         include("*.zip")
     }
-}
-
-tasks.register("packageReleaseArtifacts") {
-    dependsOn(collect)
 }

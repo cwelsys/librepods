@@ -135,7 +135,7 @@ fun NoiseControlSettings(
                         .padding(top = 4.dp, bottom = 12.dp)
                 ) {
                     Text(
-                        text = stringResource(R.string.noise_control),
+                        text = stringResource(R.string.listening_mode),
                         color = MaterialTheme.colorScheme.primary,
                         style = MaterialTheme.typography.labelSmallEmphasized
                     )
@@ -251,7 +251,7 @@ fun NoiseControlSettings(
                     .padding(top = 4.dp, bottom = 4.dp)
             ) {
                 Text(
-                    text = stringResource(R.string.noise_control),
+                    text = stringResource(R.string.listening_mode),
                     color = MaterialTheme.colorScheme.sectionHeader,
                     style = MaterialTheme.typography.labelSmallEmphasized
                 )

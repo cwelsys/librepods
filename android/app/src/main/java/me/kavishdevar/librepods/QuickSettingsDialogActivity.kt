@@ -371,7 +371,7 @@ fun NewControlCenterDialogContent(
                 initialMode = NoiseControlMode.TRANSPARENCY
             }
             currentAncMode = initialMode
-            isConvAwarenessEnabled = sharedPreferences.getBoolean("conversational_awareness", true)
+            isConvAwarenessEnabled = sharedPreferences.getBoolean("conversation_awareness", true)
             Log.d("QSActivity", "Initial ANC: $currentAncMode, ConvAware: $isConvAwarenessEnabled")
         }
 
@@ -588,7 +588,7 @@ fun NewControlCenterDialogContent(
                                 ) {
                                     Icon(
                                         painter = painterResource(id = R.drawable.airpods),
-                                        contentDescription = "Conversational Awareness",
+                                        contentDescription = "Conversation Awareness",
                                         tint = Color.White,
                                         modifier = Modifier.size(32.dp)
                                     )
@@ -597,7 +597,7 @@ fun NewControlCenterDialogContent(
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 Text(
-                                    text = "Conversational\nAwareness",
+                                    text = "Conversation\nAwareness",
                                     color = Color.White,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,

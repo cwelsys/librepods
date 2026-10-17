@@ -95,7 +95,7 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
 
         StyledList {
             StyledListItem(
-                name = stringResource(R.string.noise_control),
+                name = stringResource(R.string.listening_mode),
                 selected = longPressAction == StemAction.CYCLE_NOISE_CONTROL_MODES,
                 onClick = {
                     viewModel.setLongPressAction(
@@ -142,8 +142,8 @@ fun LongPress(viewModel: AirPodsViewModel, name: String, navigateToPurchase: () 
             val currentByte = state.controlStates[AACPManager.Companion.ControlCommandIdentifiers.LISTENING_MODE_CONFIGS]?.get(0)?.toInt() ?: 0
 
             StyledList(
-                title = stringResource(R.string.noise_control),
-                description = stringResource(R.string.press_and_hold_noise_control_description)
+                title = stringResource(R.string.listening_mode),
+                description = stringResource(R.string.press_and_hold_listening_mode_description)
             ) {
                 if (state.offListeningMode) {
                     StyledListItem(

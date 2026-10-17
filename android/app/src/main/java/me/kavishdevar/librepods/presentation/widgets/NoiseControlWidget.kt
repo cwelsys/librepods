@@ -38,7 +38,7 @@ class NoiseControlWidget : AppWidgetProvider() {
         appWidgetManager: AppWidgetManager,
         appWidgetIds: IntArray
     ) {
-        val views = RemoteViews(context.packageName, R.layout.noise_control_widget)
+        val views = RemoteViews(context.packageName, R.layout.listening_mode_widget)
 
         val offIntent = Intent(context, NoiseControlWidget::class.java).apply {
             action = "ACTION_SET_ANC_MODE"

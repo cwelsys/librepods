@@ -221,40 +221,40 @@ fun AppSettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            StyledList (title = stringResource(R.string.conversational_awareness)) {
+            StyledList (title = stringResource(R.string.conversation_awareness)) {
                 StyledToggle(
-                    label = stringResource(R.string.conversational_awareness_pause_music),
-                    description = stringResource(R.string.conversational_awareness_pause_music_description),
-                    checked = state.conversationalAwarenessPauseMusicEnabled,
-                    onCheckedChange = viewModel::setConversationalAwarenessPauseMusicEnabled,
+                    label = stringResource(R.string.conversation_awareness_pause_music),
+                    description = stringResource(R.string.conversation_awareness_pause_music_description),
+                    checked = state.conversationAwarenessPauseMusicEnabled,
+                    onCheckedChange = viewModel::setConversationAwarenessPauseMusicEnabled,
                     enabled = state.isPremium
                 )
 
                 StyledToggle(
-                    label = stringResource(R.string.relative_conversational_awareness_volume),
-                    description = stringResource(R.string.relative_conversational_awareness_volume_description),
-                    checked = state.relativeConversationalAwarenessVolumeEnabled,
-                    onCheckedChange = viewModel::setRelativeConversationalAwarenessVolumeEnabled,
+                    label = stringResource(R.string.relative_conversation_awareness_volume),
+                    description = stringResource(R.string.relative_conversation_awareness_volume_description),
+                    checked = state.relativeConversationAwarenessVolumeEnabled,
+                    onCheckedChange = viewModel::setRelativeConversationAwarenessVolumeEnabled,
                     enabled = state.isPremium,
                 )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            val conversationalAwarenessVolume = state.conversationalAwarenessVolume
-            LaunchedEffect(conversationalAwarenessVolume) {
-                viewModel.setConversationalAwarenessVolume(conversationalAwarenessVolume)
+            val conversationAwarenessVolume = state.conversationAwarenessVolume
+            LaunchedEffect(conversationAwarenessVolume) {
+                viewModel.setConversationAwarenessVolume(conversationAwarenessVolume)
             }
 
             StyledSlider(
-                label = stringResource(R.string.conversational_awareness_volume),
-                value = conversationalAwarenessVolume,
+                label = stringResource(R.string.conversation_awareness_volume),
+                value = conversationAwarenessVolume,
                 valueRange = 10f..85f,
                 snapPoints = listOf(44f),
                 startLabel = "10%",
                 endLabel = "85%",
                 onValueChange = { newValue ->
-                    viewModel.setConversationalAwarenessVolume(
+                    viewModel.setConversationAwarenessVolume(
                         newValue
                     )
                 },

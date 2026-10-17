@@ -1,5 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name" translatable="false">LibrePods</string>
     <string name="app_description">Звільніть ваші AirPods від екосистеми Apple</string>
     <string name="app_widget_description">Перегляньте статус батареї ваших AirPods прямо з головного екрана!</string>
     <string name="accessibility">Доступність</string>
@@ -11,20 +10,19 @@
     <string name="adaptive_audio_description">Адаптивний звук динамічно реагує на ваше оточення та приглушує або пропускає зовнішній шум. Ви можете налаштувати Адаптивний Звук, щоб пропускати більше або менше шуму.</string>
     <string name="buds">Навушники</string>
     <string name="case_alt">Кейс</string>
-    <string name="test">Тест</string>
     <string name="name">Назва</string>
-    <string name="noise_control">Режим Прослуховування</string>
+    <string name="listening_mode">Режим Прослуховування</string>
     <string name="off">Вимкнено</string>
     <string name="transparency">Проникність</string>
     <string name="adaptive">Адаптування</string>
     <string name="noise_cancellation">Шумогасіння</string>
     <string name="press_and_hold_airpods">Натисніть і утримуйте AirPods</string>
-    <string name="press_and_hold_noise_control_description">Натисніть і утримуйте ніжку, щоб перемикатися між обраними режимами прослуховування.</string>
+    <string name="press_and_hold_listening_mode_description">Натисніть і утримуйте ніжку, щоб перемикатися між обраними режимами прослуховування.</string>
     <string name="head_gestures">Жести Головою</string>
     <string name="left">Лівий</string>
     <string name="right">Правий</string>
-    <string name="conversational_awareness">Виявлення Розмови</string>
-    <string name="conversational_awareness_description">Знижує гучність медіа та зменшує фоновий шум, коли ви починаєте говорити.</string>
+    <string name="conversation_awareness">Виявлення Розмови</string>
+    <string name="conversation_awareness_description">Знижує гучність медіа та зменшує фоновий шум, коли ви починаєте говорити.</string>
     <string name="personalized_volume">Персональна Гучність</string>
     <string name="personalized_volume_description">Налаштовує гучність медіа відповідно до вашого оточення.</string>
     <string name="noise_cancellation_single_airpod">Шумогасіння з одним AirPod</string>
@@ -35,13 +33,13 @@
     <string name="airpods_not_connected_description">Будь ласка, підключіть ваші AirPods, щоб отримати доступ до налаштувань.</string>
     <string name="back">Назад</string>
     <string name="customizations">Персоналізація</string>
-    <string name="relative_conversational_awareness_volume">Відносна гучність</string>
-    <string name="relative_conversational_awareness_volume_description">Зменшує до відсотка від поточної гучності, а не від максимальної.</string>
-    <string name="conversational_awareness_pause_music">Призупинити Музику</string>
-    <string name="conversational_awareness_pause_music_description">Коли ви почнете говорити, музику буде призупинено.</string>
+    <string name="relative_conversation_awareness_volume">Відносна гучність</string>
+    <string name="relative_conversation_awareness_volume_description">Зменшує до відсотка від поточної гучності, а не від максимальної.</string>
+    <string name="conversation_awareness_pause_music">Призупинити Музику</string>
+    <string name="conversation_awareness_pause_music_description">Коли ви почнете говорити, музику буде призупинено.</string>
     <string name="appwidget_text">ПРИКЛАД</string>
     <string name="add_widget">Додати віджет</string>
-    <string name="noise_control_widget_description">Керуйте режимом шумоконтролю прямо з головного екрана.</string>
+    <string name="listening_mode_widget_description">Керуйте режимом шумоконтролю прямо з головного екрана.</string>
     <string name="island_connected_text">Підключено</string>
     <string name="island_connected_remote_text">Підключено до Linux</string>
     <string name="island_taking_over_text">Підключено</string>
@@ -140,7 +138,7 @@
     <string name="widget">Віджет</string>
     <string name="show_phone_battery_in_widget">Показати заряд телефону у віджеті</string>
     <string name="show_phone_battery_in_widget_description">Відображати рівень заряду вашого телефону у віджеті разом із зарядом AirPods</string>
-    <string name="conversational_awareness_volume">Гучність Усвідомлення Розмови</string>
+    <string name="conversation_awareness_volume">Гучність Усвідомлення Розмови</string>
     <string name="quick_settings_tile">Плитка Швидких Налаштувань</string>
     <string name="open_dialog_for_controlling">Відкрити діалог для керування</string>
     <string name="open_dialog_for_controlling_description">Якщо вимкнено, натискання на плитку швидких налаштувань перемикатиме між режимами. Якщо ввімкнено, вона покаже діалог для керування режимом шумоконтролю та усвідомленням розмови</string>
@@ -210,4 +208,5 @@
     <string name="listening_mode_transparency_description">Пропускає зовнішні звуки</string>
     <string name="listening_mode_adaptive_description">Динамічно налаштовує зовнішній шум</string>
     <string name="listening_mode_noise_cancellation_description">Блокує зовнішні звуки</string>
+    <string name="play_foss_premium_banner">Ваш застосунок було оновлено до версії з Google Play; розширені функції буде вимкнено через %1$d дн. Оновіть його з початкового джерела, щоб залишитися на FOSS-версії, дочекайтеся завершення цього періоду, щоб придбати оновлення напряму, або натисніть тут, щоб запросити промокод, якщо ви вже підтримуєте проєкт.</string>
 </resources>

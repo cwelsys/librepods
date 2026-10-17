@@ -11,20 +11,19 @@
     <string name="adaptive_audio_description">Adaptive audio dynamically responds to your environment and cancels or allows external noise. You can customize Adaptive Audio to allow more or less noise.</string>
     <string name="buds">Buds</string>
     <string name="case_alt">Case</string>
-    <string name="test">Test</string>
     <string name="name">Name</string>
-    <string name="noise_control">Listening Mode</string>
+    <string name="listening_mode">Listening Mode</string>
     <string name="off">Off</string>
     <string name="transparency">Transparency</string>
     <string name="adaptive">Adaptive</string>
     <string name="noise_cancellation">Noise Cancellation</string>
     <string name="press_and_hold_airpods">Press and Hold AirPods</string>
-    <string name="press_and_hold_noise_control_description">Press and hold the stem to cycle between the selected listening modes.</string>
+    <string name="press_and_hold_listening_mode_description">Press and hold the stem to cycle between the selected listening modes.</string>
     <string name="head_gestures">Head Gestures</string>
     <string name="left">Left</string>
     <string name="right">Right</string>
-    <string name="conversational_awareness">Conversational Awareness</string>
-    <string name="conversational_awareness_description">Lowers media volume and reduces background noise when you start speaking to other people.</string>
+    <string name="conversation_awareness">Conversation Awareness</string>
+    <string name="conversation_awareness_description">Lowers media volume and reduces background noise when you start speaking to other people.</string>
     <string name="personalized_volume">Personalized Volume</string>
     <string name="personalized_volume_description">Adjusts the volume of media in response to your environment.</string>
     <string name="noise_cancellation_single_airpod">Noise Cancellation with Single AirPod</string>
@@ -35,13 +34,13 @@
     <string name="airpods_not_connected_description">Please connect your AirPods to access settings.</string>
     <string name="back">Back</string>
     <string name="customizations">Customizations</string>
-    <string name="relative_conversational_awareness_volume">Relative volume</string>
-    <string name="relative_conversational_awareness_volume_description">Reduces to a percentage of the current volume instead of the maximum volume.</string>
-    <string name="conversational_awareness_pause_music">Pause Music</string>
-    <string name="conversational_awareness_pause_music_description">When you start speaking, music will be paused.</string>
+    <string name="relative_conversation_awareness_volume">Relative volume</string>
+    <string name="relative_conversation_awareness_volume_description">Reduces to a percentage of the current volume instead of the maximum volume.</string>
+    <string name="conversation_awareness_pause_music">Pause Music</string>
+    <string name="conversation_awareness_pause_music_description">When you start speaking, music will be paused.</string>
     <string name="appwidget_text">EXAMPLE</string>
     <string name="add_widget">Add widget</string>
-    <string name="noise_control_widget_description">Control Noise Control Mode directly from your Home Screen.</string>
+    <string name="listening_mode_widget_description">Control Noise Control Mode directly from your Home Screen.</string>
     <string name="island_connected_text">Connected</string>
     <string name="island_connected_remote_text">Connected to Linux</string>
     <string name="island_taking_over_text">Connected</string>
@@ -145,10 +144,10 @@
     <string name="show_bottom_sheet_popup_description">Show the iOS-style modal popup at the bottom when AirPods connect.</string>
     <string name="show_island_popup">Dynamic Island popup</string>
     <string name="show_island_popup_description">Show the Dynamic Island-style popup at the top for connection and takeover events.</string>
-    <string name="conversational_awareness_volume">Conversational Awareness Volume</string>
+    <string name="conversation_awareness_volume">Conversation Awareness Volume</string>
     <string name="quick_settings_tile">Quick Settings Tile</string>
     <string name="open_dialog_for_controlling">Open dialog for controlling</string>
-    <string name="open_dialog_for_controlling_description">If disabled, clicking on the QS will cycle through modes. If enabled, it will show a dialog for controlling noise control mode and conversational awareness</string>
+    <string name="open_dialog_for_controlling_description">If disabled, clicking on the QS will cycle through modes. If enabled, it will show a dialog for controlling noise control mode and conversation awareness</string>
     <string name="disconnect_when_not_wearing">Disconnect AirPods when not wearing</string>
     <string name="disconnect_when_not_wearing_description">You will still be able to control them with the app - this just disconnects the audio.</string>
     <string name="advanced_options">Advanced Options</string>
@@ -221,12 +220,12 @@
     <string name="ear_detection_description">Automatically stop playing audio when you take them off, and resume playback when you put them back on.</string>
     <string name="battery">Battery</string>
     <string name="battery_description">View accurate battery status in the app and notification.</string>
-    <string name="noise_control_description">Switch between listening modes directly from the app or Quick Settings.</string>
+    <string name="listening_mode_description">Switch between listening modes directly from the app or Quick Settings.</string>
     <string name="advanced_device_settings">Advanced device settings</string>
     <string name="advanced_device_settings_description">Customize settings like Personalized Volume, Adaptive Audio, Pause media when falling asleep, and other Accessibility settings.</string>
     <string name="automatic_connection">Automatic Connection</string>
     <string name="automatic_connection_description">Enable and customize automatic connection to AirPods.</string>
-    <string name="customizations_description">Get access to app customizations, including phone battery in widget, conversational awareness volume, and many more upcoming customization features.</string>
+    <string name="customizations_description">Get access to app customizations, including phone battery in widget, conversation awareness volume, and many more upcoming customization features.</string>
     <string name="support_the_development">Support the development</string>
     <string name="support_development_description">LibrePods is developed by a single developer. Upgrading helps keep the app alive.</string>
     <string name="feature_availability_disclaimer">Feature availability depends on your AirPods model and firmware version.</string>
@@ -244,16 +243,6 @@
     <string name="bypass_compatibility_check">Bypass compatibility check</string>
     <string name="bypass_compatiblity_check_confirmation">Are you sure your device is supported natively/you have Xposed module enabled?</string>
     <string name="not_supported">Not supported</string>
-    <string name="check_the_repository_for_more_info">
-        Many devices are not supported due to limitations in the Android Bluetooth stack.
-        \nOn these devices, root access with an Xposed framework is required for full functionality.
-        \n\nThis limitation has been addressed in newer Android versions. The following device configurations can run the app natively:
-        \n• Google Pixel® running Android 16 March update and later with the lateset Play system update
-        \n• Google Pixel® running 17 Beta 3 and above
-        \n• OnePlus devices running OxygenOS 16 or later
-        \n• Oppo devices running ColorOS 16 or later
-        \n\nFor details, see the project documentation.
-    </string>
     <string name="name_your_own_price">(Name your own price)</string>
     <string name="compatibility_play_dialog_confirmation">
         This device may not be supported due to platform limitations and requires an Xposed framework. Tick the checkbox below and type OK to continue.
@@ -276,7 +265,7 @@
     <string name="optimized_charging">Optimized Charge Limit</string>
     <string name="optimized_charging_description">AirPods can learn from your daily usage and determine when to charge to an optmized limit and when to allow or full charge. This limit adapts to your daily usage and preserves your battery lifespan over time.\nThis setting may not affect unsupported AirPods, or AirPods on an older firmware version.</string>
     <string name="enable_app_in_xposed_or_update_device">Update your device or enable LibrePods in Xposed and reopen the app to proceed.</string>
-    <string name="play_foss_premium_banner">Due to an error in billing, premium access will expire in %1$d days. If you already upgraded the app, please click on this message to email billing@kavish.xyz to restore or verify access. Apologies for the inconvenience.</string>
+    <string name="play_foss_premium_banner">Your app was updated to the Google Play version; advanced features will be disabled in %1$d days. Update from your original source to stay on the FOSS version, wait for this period to end to purchase the upgrade directly, or tap here to request a promo code if you are already a supporter.</string>
     <string name="custom">Custom</string>
     <string name="recommended">Recommended</string>
     <string name="appearance">Appearance</string>
@@ -291,4 +280,13 @@
     <string name="privacy_policy">Privacy Policy</string>
     <string name="i_agree">I agree</string>
     <string name="compatibility_check_bypassed">Compatibility check bypassed. Are you sure your device is compatible?</string>
+    <string name="not_compatible_update">Your device is not currently compatible. Please update your device to continue.</string>
+    <string name="not_compatitble_description">Due to a limitation in Android, a newer version of Android is required to use LibrePods.
+        \n• Google Pixel devices need Android 16 March update or later with the latest Google Play system update
+        \n• OnePlus and Oppo devices need Android 16
+        \n• All other devices need Android 17 (OneUI 9, MagicOS 11, Nothing OS 5.0, etc.)
+    </string>
+    <string name="eq_low">Low</string>
+    <string name="eq_mid">Mid</string>
+    <string name="eq_high">High</string>
 </resources>

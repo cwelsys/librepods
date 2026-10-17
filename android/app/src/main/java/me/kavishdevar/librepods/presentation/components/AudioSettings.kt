@@ -28,7 +28,7 @@ import kotlin.io.encoding.ExperimentalEncodingApi
 @Composable
 fun AudioSettings(
     adaptiveVolumeCapability: Boolean,
-    conversationalAwarenessCapability: Boolean,
+    conversationAwarenessCapability: Boolean,
     loudSoundReductionCapability: Boolean,
     adaptiveAudioCapability: Boolean,
     customEqCapability: Boolean,
@@ -36,8 +36,8 @@ fun AudioSettings(
     adaptiveVolumeChecked: Boolean,
     onAdaptiveVolumeCheckedChange: (Boolean) -> Unit,
 
-    conversationalAwarenessChecked: Boolean,
-    onConversationalAwarenessCheckedChange: (Boolean) -> Unit,
+    conversationAwarenessChecked: Boolean,
+    onConversationAwarenessCheckedChange: (Boolean) -> Unit,
 
     loudSoundReductionChecked: Boolean,
     onLoudSoundReductionCheckedChange: (Boolean) -> Unit,
@@ -48,7 +48,7 @@ fun AudioSettings(
     vendorIdHook: Boolean,
     isPremium: Boolean
 ) {
-    if (adaptiveVolumeCapability || conversationalAwarenessCapability || loudSoundReductionCapability || adaptiveAudioCapability) {
+    if (adaptiveVolumeCapability || conversationAwarenessCapability || loudSoundReductionCapability || adaptiveAudioCapability) {
         StyledList(title = stringResource(R.string.audio)) {
             if (adaptiveVolumeCapability) {
                 StyledToggle(
@@ -60,12 +60,12 @@ fun AudioSettings(
                 )
             }
 
-            if (conversationalAwarenessCapability) {
+            if (conversationAwarenessCapability) {
                 StyledToggle(
-                    label = stringResource(R.string.conversational_awareness),
-                    description = stringResource(R.string.conversational_awareness_description),
-                    checked = conversationalAwarenessChecked,
-                    onCheckedChange = onConversationalAwarenessCheckedChange,
+                    label = stringResource(R.string.conversation_awareness),
+                    description = stringResource(R.string.conversation_awareness_description),
+                    checked = conversationAwarenessChecked,
+                    onCheckedChange = onConversationAwarenessCheckedChange,
                     enabled = isPremium,
                 )
             }

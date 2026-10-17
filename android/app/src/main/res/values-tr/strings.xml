@@ -1,5 +1,4 @@
 <resources xmlns:tools="http://schemas.android.com/tools" tools:ignore="MissingTranslation">
-    <string name="app_name" translatable="false">LibrePods</string>
     <string name="app_description">AirPods\'unuzu Apple\'ın ekosisteminden kurtarın</string>
     <string name="app_widget_description">Ana ekranınızdan doğrudan AirPods pil durumunuzu görün!</string>
     <string name="accessibility">Erişilebilirlik</string>
@@ -11,20 +10,19 @@
     <string name="adaptive_audio_description">Uyarlanabilir ses, ortamınıza dinamik olarak tepki verir ve dış gürültüyü engeller veya geçirir. Uyarlanabilir Sesi daha fazla veya daha az gürültü geçirecek şekilde özelleştirebilirsiniz.</string>
     <string name="buds">Kulaklıklar</string>
     <string name="case_alt">Kılıf</string>
-    <string name="test">Test</string>
     <string name="name">İsim</string>
-    <string name="noise_control">Dinleme Modu</string>
+    <string name="listening_mode">Dinleme Modu</string>
     <string name="off">Kapalı</string>
     <string name="transparency">Şeffaflık</string>
     <string name="adaptive">Uyarlanabilir</string>
     <string name="noise_cancellation">Gürültü Engelleme</string>
     <string name="press_and_hold_airpods">AirPods\'a Basılı Tutun</string>
-    <string name="press_and_hold_noise_control_description">Seçili dinleme modları arasında geçiş yapmak için sapı basılı tutun.</string>
+    <string name="press_and_hold_listening_mode_description">Seçili dinleme modları arasında geçiş yapmak için sapı basılı tutun.</string>
     <string name="head_gestures">Kafa Hareketleri</string>
     <string name="left">Sol</string>
     <string name="right">Sağ</string>
-    <string name="conversational_awareness">Konuşma Farkındalığı</string>
-    <string name="conversational_awareness_description">Başkalarıyla konuşmaya başladığınızda medya sesini düşürür ve arka plan gürültüsünü azaltır.</string>
+    <string name="conversation_awareness">Konuşma Farkındalığı</string>
+    <string name="conversation_awareness_description">Başkalarıyla konuşmaya başladığınızda medya sesini düşürür ve arka plan gürültüsünü azaltır.</string>
     <string name="personalized_volume">Kişiselleştirilmiş Ses</string>
     <string name="personalized_volume_description">Ortamınıza göre medya sesini ayarlar.</string>
     <string name="noise_cancellation_single_airpod">Tek AirPod ile Gürültü Engelleme</string>
@@ -35,13 +33,13 @@
     <string name="airpods_not_connected_description">Ayarlara erişmek için lütfen AirPods\'unuzu bağlayın.</string>
     <string name="back">Geri</string>
     <string name="customizations">Özelleştirmeler</string>
-    <string name="relative_conversational_awareness_volume">Göreceli ses</string>
-    <string name="relative_conversational_awareness_volume_description">Maksimum ses yerine mevcut sesin yüzdesine göre azaltır.</string>
-    <string name="conversational_awareness_pause_music">Müziği Duraklat</string>
-    <string name="conversational_awareness_pause_music_description">Konuşmaya başladığınızda müzik duraklatılacaktır.</string>
+    <string name="relative_conversation_awareness_volume">Göreceli ses</string>
+    <string name="relative_conversation_awareness_volume_description">Maksimum ses yerine mevcut sesin yüzdesine göre azaltır.</string>
+    <string name="conversation_awareness_pause_music">Müziği Duraklat</string>
+    <string name="conversation_awareness_pause_music_description">Konuşmaya başladığınızda müzik duraklatılacaktır.</string>
     <string name="appwidget_text">ÖRNEK</string>
     <string name="add_widget">Widget ekle</string>
-    <string name="noise_control_widget_description">Gürültü Kontrol Modunu doğrudan Ana Ekranınızdan kontrol edin.</string>
+    <string name="listening_mode_widget_description">Gürültü Kontrol Modunu doğrudan Ana Ekranınızdan kontrol edin.</string>
     <string name="island_connected_text">Bağlı</string>
     <string name="island_connected_remote_text">Linux\'a bağlı</string>
     <string name="island_taking_over_text">Bağlı</string>
@@ -140,7 +138,7 @@
     <string name="widget">Widget</string>
     <string name="show_phone_battery_in_widget">Widget\'ta telefon pilini göster</string>
     <string name="show_phone_battery_in_widget_description">Widget\'ta AirPods piliyle birlikte telefonunuzun pil seviyesini göster</string>
-    <string name="conversational_awareness_volume">Konuşma Farkındalığı Sesi</string>
+    <string name="conversation_awareness_volume">Konuşma Farkındalığı Sesi</string>
     <string name="quick_settings_tile">Hızlı Ayarlar Döşemesi</string>
     <string name="open_dialog_for_controlling">Kontrol için iletişim kutusunu aç</string>
     <string name="open_dialog_for_controlling_description">Devre dışı bırakılırsa, Hızlı Ayarlar\'a tıklamak modlar arasında geçiş yapar. Etkinleştirilirse, gürültü kontrol modu ve konuşma farkındalığını kontrol etmek için bir iletişim kutusu gösterir</string>
@@ -210,4 +208,5 @@
     <string name="listening_mode_transparency_description">Dış sesleri içeri alır</string>
     <string name="listening_mode_adaptive_description">Dış gürültüyü dinamik olarak ayarlar</string>
     <string name="listening_mode_noise_cancellation_description">Dış sesleri engeller</string>
+    <string name="play_foss_premium_banner">Uygulamanız Google Play sürümüne güncellendi; gelişmiş özellikler %1$d gün içinde devre dışı bırakılacaktır. FOSS sürümünde kalmak için orijinal kaynağınızdan güncelleyin, yükseltmeyi doğrudan satın almak için bu sürenin bitmesini bekleyin veya halihazırda bir destekçiyseniz promosyon kodu talep etmek için buraya dokunun.</string>
 </resources>
